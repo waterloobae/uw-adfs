@@ -1,0 +1,19 @@
+ADFS information required for the application:
+
+Production
+
+    IdP Entity ID: adfs.uwaterloo.ca
+
+    URL for IdP metadata: https://adfs.uwaterloo.ca/FederationMetadata/2007-06/FederationMetadata.xml
+
+    Federation Identifier: http://adfs.uwaterloo.ca/adfs/services/trust
+
+    IDP identifier: http://adfs.uwaterloo.ca/adfs/services/trust
+
+Development
+
+    IdP Entity ID: adfstest.uwaterloo.ca
+
+    URL for IdP metadata:​​​ https://adfstest.uwaterloo.ca/FederationMetadata/2007-06/FederationMetadata.xml
+
+Note: ADFS can also be used to limit access to an application based on an active directory group or set of groups.
