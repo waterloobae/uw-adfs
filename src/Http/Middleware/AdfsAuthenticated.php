@@ -11,7 +11,7 @@ class AdfsAuthenticated
     /**
      * Handle an incoming request.
      */
-    public function handle(Request $request, Closure $next, string $guard = null)
+    public function handle(Request $request, Closure $next, ?string $guard = null)
     {
         if (!Auth::guard($guard)->check()) {
             return redirect()->route('saml.login', [

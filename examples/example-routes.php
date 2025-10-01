@@ -10,7 +10,9 @@
 */
 
 use App\Http\Controllers\ExampleAdfsController;
+use Illuminate\Support\Facades\Route;
 
+/***** 
 // Public routes
 Route::get('/', function () {
     return view('welcome');
@@ -53,3 +55,4 @@ Route::get('/admin-alt', [ExampleAdfsController::class, 'admin'])
 Route::get('/secure-admin', function () {
     return view('secure-admin');
 })->middleware(['adfs.auth', 'adfs.group:IT Support']);
+******/
