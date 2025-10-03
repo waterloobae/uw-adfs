@@ -33,7 +33,7 @@ class AdfsService
     /**
      * Build SAML configuration array
      */
-    protected function buildSamlConfig(): array
+    public function buildSamlConfig(): array
     {
         $environment = $this->config['environment'];
         $idpConfig = $this->config['idp'][$environment];
@@ -272,17 +272,65 @@ class AdfsService
      */
     public function mapAttributes(array $attributes): array
     {
-        $mapping = $this->config['attribute_mapping'];
+        $mapping = config('uw-adfs.attribute_mapping', []);
         $userData = [];
 
         foreach ($mapping as $userField => $samlAttribute) {
-            if (isset($attributes[$samlAttribute]) && !empty($attributes[$samlAttribute])) {
-                $value = $attributes[$samlAttribute];
-                $userData[$userField] = is_array($value) ? $value[0] : $value;
+            // Handle multiple possible attribute names (array of alternatives)
+            if (is_array($samlAttribute)) {
+                foreach ($samlAttribute as $possibleAttribute) {
+                    if (isset($attributes[$possibleAttribute]) && !empty($attributes[$possibleAttribute])) {
+                        $value = $attributes[$possibleAttribute];
+                        
+                        // Special handling for groups - keep as array and clean up
+                        if ($userField === 'groups') {
+                            $userData[$userField] = $this->processGroupAttributes($value);
+                        } else {
+                            $userData[$userField] = is_array($value) ? $value[0] : $value;
+                        }
+                        break; // Use first matching attribute
+                    }
+                }
+            } else {
+                // Single attribute name
+                if (isset($attributes[$samlAttribute]) && !empty($attributes[$samlAttribute])) {
+                    $value = $attributes[$samlAttribute];
+                    
+                    // Special handling for groups
+                    if ($userField === 'groups') {
+                        $userData[$userField] = $this->processGroupAttributes($value);
+                    } else {
+                        $userData[$userField] = is_array($value) ? $value[0] : $value;
+                    }
+                }
             }
         }
 
         return $userData;
+    }
+
+    /**
+     * Process group attributes to extract clean group names
+     */
+    protected function processGroupAttributes($groups): array
+    {
+        if (!is_array($groups)) {
+            $groups = [$groups];
+        }
+        
+        $cleanGroups = [];
+        foreach ($groups as $group) {
+            // Extract group name from Distinguished Name format
+            // e.g., "CN=Faculty,OU=Groups,DC=uwaterloo,DC=ca" -> "Faculty"
+            if (preg_match('/^CN=([^,]+),/', $group, $matches)) {
+                $cleanGroups[] = $matches[1];
+            } else {
+                // If not DN format, use as-is
+                $cleanGroups[] = $group;
+            }
+        }
+        
+        return array_unique($cleanGroups);
     }
 
     /**
@@ -309,14 +357,21 @@ class AdfsService
      */
     public function getUserGroups(array $attributes): array
     {
-        $groupsAttribute = $this->config['attribute_mapping']['groups'];
+        $groupsMapping = config('uw-adfs.attribute_mapping.groups', ['http://schemas.xmlsoap.org/claims/Group']);
+        $groups = [];
+
+        // Handle multiple possible group attribute names
+        $possibleAttributes = is_array($groupsMapping) ? $groupsMapping : [$groupsMapping];
         
-        if (isset($attributes[$groupsAttribute])) {
-            $groups = $attributes[$groupsAttribute];
-            return is_array($groups) ? $groups : [$groups];
+        foreach ($possibleAttributes as $groupsAttribute) {
+            if (isset($attributes[$groupsAttribute]) && !empty($attributes[$groupsAttribute])) {
+                $rawGroups = $attributes[$groupsAttribute];
+                $groups = $this->processGroupAttributes($rawGroups);
+                break; // Use first matching attribute
+            }
         }
 
-        return [];
+        return $groups;
     }
 
     /**

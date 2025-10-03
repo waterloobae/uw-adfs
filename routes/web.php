@@ -34,6 +34,10 @@ Route::group([
     // SAML Metadata
     Route::get('/metadata', [AdfsController::class, 'metadata'])->name('saml.metadata');
     
-    // Debug route for SAML attributes (remove in production)
-    Route::get('/attributes', [AdfsController::class, 'attributes'])->name('saml.attributes');
+        // Debug route for SAML attributes (remove in production)\n    Route::get('/attributes', [AdfsController::class, 'attributes'])->name('saml.attributes');\n    \n    // Proxy routes (when acting as SAML proxy/staging AP)\n    Route::prefix('proxy')->name('saml.proxy.')->group(function () {\n        Route::get('/sso', [\\WaterlooBae\\UwAdfs\\Http\\Controllers\\ProxyController::class, 'sso'])->name('sso');\n        Route::post('/sso', [\\WaterlooBae\\UwAdfs\\Http\\Controllers\\ProxyController::class, 'sso']);\n        Route::post('/acs', [\\WaterlooBae\\UwAdfs\\Http\\Controllers\\ProxyController::class, 'acs'])->name('acs');\n        Route::get('/sls', [\\WaterlooBae\\UwAdfs\\Http\\Controllers\\ProxyController::class, 'sls'])->name('sls');\n        Route::post('/sls', [\\WaterlooBae\\UwAdfs\\Http\\Controllers\\ProxyController::class, 'sls']);\n        Route::get('/metadata', [\\WaterlooBae\\UwAdfs\\Http\\Controllers\\ProxyController::class, 'metadata'])->name('metadata');\n        Route::get('/status', [\\WaterlooBae\\UwAdfs\\Http\\Controllers\\ProxyController::class, 'status'])->name('status');\n    });\n});">
 });
+
+// Access denied route
+Route::get('/access-denied', function () {
+    return view('uw-adfs::access-denied');
+})->name('uw-adfs.access-denied');

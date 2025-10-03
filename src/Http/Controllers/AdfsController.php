@@ -9,6 +9,7 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use WaterlooBae\UwAdfs\Services\AdfsService;
+use WaterlooBae\UwAdfs\Services\AccessControlService;
 
 class AdfsController extends Controller
 {
@@ -39,6 +40,21 @@ class AdfsController extends Controller
         try {
             $samlData = $this->adfsService->acs();
             
+            // Check access control
+            $accessControl = new AccessControlService(config('uw-adfs.access_control', []));
+            $accessResult = $accessControl->isUserAuthorized($samlData['attributes']);
+            
+            // Log access decision
+            $userData = $this->adfsService->mapAttributes($samlData['attributes']);
+            $email = $userData['email'] ?? 'unknown';
+            $accessControl->logAccessDecision($email, $accessResult);
+            
+            if (!$accessResult['authorized']) {
+                return redirect(config('uw-adfs.access_control.access_denied_url', '/access-denied'))
+                    ->with('error', $accessResult['reason'])
+                    ->with('access_control_details', $accessResult);
+            }
+            
             // Create or update user from SAML attributes
             $user = $this->adfsService->createOrUpdateUser($samlData['attributes']);
             
@@ -51,6 +67,7 @@ class AdfsController extends Controller
                     'nameId' => $samlData['nameId'],
                     'sessionIndex' => $samlData['sessionIndex'],
                     'attributes' => $samlData['attributes'],
+                    'access_control_result' => $accessResult,
                 ]);
                 
                 // Get return URL from RelayState or default

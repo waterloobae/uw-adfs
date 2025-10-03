@@ -6,13 +6,15 @@ This Laravel package provides SAML authentication integration with University of
 
 - SAML 2.0 authentication with UW ADFS
 - **Automatic online metadata fetching** with caching and fallback
+- **Advanced access control** with department, group, and whitelist filtering
 - Support for both production and development environments
 - Automatic user creation and updates
-- Group-based access control
 - Easy-to-use middleware for route protection
 - Configurable attribute mapping
 - Single Sign-On (SSO) and Single Logout (SLO)
 - Metadata caching for improved performance
+- Comprehensive logging and access decision tracking
+- Custom access denied pages with detailed information
 
 ## Requirements
 
@@ -60,6 +62,16 @@ UW_ADFS_METADATA_CACHE=true
 UW_ADFS_METADATA_CACHE_DURATION=3600
 UW_ADFS_METADATA_TIMEOUT=30
 UW_ADFS_METADATA_FALLBACK_LOCAL=true
+
+# Access Control Configuration (optional)
+UW_ADFS_DEPARTMENT_RESTRICTION=false
+UW_ADFS_ALLOWED_DEPARTMENTS="Mathematics,Computer Science"
+UW_ADFS_WHITELIST_ENABLED=false
+UW_ADFS_WHITELIST_EMAILS="admin@uwaterloo.ca,special.user@uwaterloo.ca"
+UW_ADFS_GROUP_RESTRICTION=false
+UW_ADFS_REQUIRED_GROUPS="Faculty,Staff"
+UW_ADFS_BLOCKED_GROUPS="Suspended Accounts,Guest Users"
+UW_ADFS_ACCESS_DENIED_MESSAGE="Access denied. Contact administrator."
 
 # User Model (optional, defaults to App\Models\User)
 UW_ADFS_USER_MODEL=App\Models\User
@@ -219,11 +231,12 @@ $hasAccess = UwAdfs::userHasGroup($samlSession['attributes'], 'Required Group Na
 The package registers the following routes:
 
 - `GET /saml/login` - Initiate SAML login
-- `POST /saml/acs` - SAML Assertion Consumer Service
+- `POST /saml/acs` - SAML Assertion Consumer Service (includes access control)
 - `GET|POST /saml/sls` - SAML Single Logout Service
 - `GET|POST /saml/logout` - Initiate SAML logout
 - `GET /saml/metadata` - SP metadata (for ADFS configuration)
 - `GET /saml/attributes` - Debug route to view SAML attributes
+- `GET /access-denied` - Access denied page with detailed information
 
 ## ADFS Configuration
 
@@ -249,6 +262,19 @@ Route::group(['middleware' => ['adfs.group:Faculty']], function () {
 
 Visit `/saml/attributes` (when logged in) to see available SAML attributes and session data.
 
+### Access Control Issues
+
+1. **Access Denied Unexpectedly**: Check Laravel logs for access control decisions
+2. **Department Not Recognized**: Verify department attribute is being sent by ADFS
+3. **Groups Not Working**: Confirm group attribute mapping in configuration
+4. **Whitelist Not Working**: Ensure email addresses match exactly (case-insensitive)
+
+### Development Issues
+
+1. **Mock Login Not Working**: Ensure you're in `local` or `development` environment
+2. **ngrok Issues**: Check if tunnel is active and URL is updated in config
+3. **ADFS Whitelist**: Contact ADFS admin to allow your ngrok subdomain
+
 ### Metadata Issues
 
 If you encounter metadata-related issues:
@@ -260,21 +286,145 @@ If you encounter metadata-related issues:
 
 ### Common Issues
 
-1. **Certificate Issues**: Ensure the SAML metadata is accessible and contains valid certificates
-2. **Clock Skew**: SAML assertions are time-sensitive. Ensure server time is synchronized
-3. **URL Mismatch**: Ensure the URLs in your configuration match exactly with what's configured in ADFS
-4. **Network Issues**: Check firewall rules if metadata fetching fails
-5. **Cache Problems**: Clear metadata cache if you see stale certificate errors
+1. **Certificate Issues**: Ensure the SAML metadata is accessible and contains valid certificates\n2. **Clock Skew**: SAML assertions are time-sensitive. Ensure server time is synchronized\n3. **URL Mismatch**: Ensure the URLs in your configuration match exactly with what's configured in ADFS\n4. **Network Issues**: Check firewall rules if metadata fetching fails\n5. **Cache Problems**: Clear metadata cache if you see stale certificate errors\n6. **Proxy Issues**: When using proxy mode, check proxy status and logs\n\n   ```bash\n   # Check proxy status\n   curl https://your-app.uwaterloo.ca/saml/proxy/status\n   \n   # Check proxy logs\n   tail -f storage/logs/laravel.log | grep \"UW ADFS Proxy\"\n   ```\n\n   Common proxy issues:\n   - **Missing Client Context**: Session data lost between request and response\n   - **Upstream Timeout**: UW ADFS taking too long to respond\n   - **Attribute Filtering**: Required attributes being filtered out\n   - **Invalid Client Requests**: Malformed SAML requests from client apps">
 
-## Key Benefits
+## Access Control & User Filtering
 
-1. **Always Up-to-Date**: Metadata is fetched from authoritative UW ADFS sources
-2. **High Performance**: Intelligent caching reduces network latency
-3. **Reliable**: Robust fallback ensures service continuity during outages
-4. **Low Maintenance**: No manual XML file updates required
-5. **Comprehensive Monitoring**: Clear logging and administrative commands
-6. **Flexible Configuration**: Adaptable behavior for different environments
-7. **Backward Compatible**: Existing installations work without changes
+The package includes comprehensive access control features to restrict access based on departments, groups, and whitelists.
+
+### Department-Based Access Control
+
+Restrict access to users from specific departments:
+
+```env
+# Enable department filtering
+UW_ADFS_DEPARTMENT_RESTRICTION=true
+
+# Allow only Math and Computer Science departments
+UW_ADFS_ALLOWED_DEPARTMENTS="Mathematics,Computer Science,Statistics"
+```
+
+### Email Whitelist
+
+Allow specific users regardless of other restrictions:
+
+```env
+# Enable whitelist
+UW_ADFS_WHITELIST_ENABLED=true
+
+# Specific users who should always have access
+UW_ADFS_WHITELIST_EMAILS="admin@uwaterloo.ca,director@math.uwaterloo.ca,special.user@uwaterloo.ca"
+```
+
+### Group-Based Access Control
+
+Control access based on Active Directory group membership:
+
+```env
+# Enable group restrictions
+UW_ADFS_GROUP_RESTRICTION=true
+
+# Users must belong to at least one of these groups
+UW_ADFS_REQUIRED_GROUPS="Faculty,Staff,Graduate Students"
+
+# Block users from these groups
+UW_ADFS_BLOCKED_GROUPS="Suspended Accounts,Inactive Users"
+```
+
+### Access Control Hierarchy
+
+1. **Whitelist** (if enabled): Overrides all other restrictions
+2. **Blocked Groups**: Users in these groups are denied access
+3. **Required Groups**: Users must belong to at least one
+4. **Department Restrictions**: Users must be from allowed departments
+
+### Custom Access Denied Page
+
+```env
+# Custom access denied configuration
+UW_ADFS_ACCESS_DENIED_URL="/custom-access-denied"
+UW_ADFS_ACCESS_DENIED_MESSAGE="Access restricted to authorized personnel only."
+```
+
+### Access Control Examples
+
+See `examples/access-control-examples.env` for complete configuration scenarios.
+
+## Complete Implementation Example
+
+### Environment Configuration (.env)
+
+```env
+# Basic ADFS Configuration
+UW_ADFS_ENVIRONMENT=production
+UW_ADFS_SP_ENTITY_ID=https://cemc.uwaterloo.ca
+UW_ADFS_SP_ACS_URL=https://cemc.uwaterloo.ca/saml/acs
+UW_ADFS_SP_SLS_URL=https://cemc.uwaterloo.ca/saml/sls
+
+# Access Control - Mathematics Department Only
+UW_ADFS_DEPARTMENT_RESTRICTION=true
+UW_ADFS_ALLOWED_DEPARTMENTS="Mathematics,Statistics"
+
+# Whitelist for Special Users
+UW_ADFS_WHITELIST_ENABLED=true
+UW_ADFS_WHITELIST_EMAILS="admin@uwaterloo.ca,cemc-director@math.uwaterloo.ca"
+
+# Group Restrictions
+UW_ADFS_GROUP_RESTRICTION=true
+UW_ADFS_REQUIRED_GROUPS="Faculty,Staff,Graduate Students"
+UW_ADFS_BLOCKED_GROUPS="Suspended Accounts"
+
+# Custom Messages
+UW_ADFS_ACCESS_DENIED_MESSAGE="Access restricted to Mathematics department members."
+```
+
+### Route Configuration (routes/web.php)
+
+```php
+// Public routes
+Route::get('/', function () {
+    return view('welcome');
+});
+
+// Protected routes with ADFS authentication + access control
+Route::middleware(['adfs.auth'])->group(function () {
+    Route::get('/dashboard', 'DashboardController@index');
+    Route::get('/member-resources', 'ResourceController@index');
+});
+
+// Faculty-only routes
+Route::middleware(['adfs.group:Faculty'])->group(function () {
+    Route::get('/faculty-tools', 'FacultyController@tools');
+});
+
+// Admin routes with multiple restrictions
+Route::middleware(['adfs.group:Administrators'])->group(function () {
+    Route::get('/admin', 'AdminController@index');
+});
+```
+
+### Controller Implementation
+
+```php
+<?php
+
+class DashboardController extends Controller
+{
+    public function index()
+    {
+        $user = Auth::user();
+        $attributes = session('saml_attributes', []);
+        
+        return view('dashboard', [
+            'user' => $user,
+            'department' => $attributes['department'][0] ?? 'Unknown',
+            'groups' => $attributes['memberOf'] ?? []
+        ]);
+    }
+}
+```
+
+## SAML Proxy/Staging AP Support\n\nThe package now supports **SAML Proxy mode** (also known as Staging Authentication Proxy), allowing your application to act as an intermediary between client applications and UW ADFS. This is particularly useful for:\n\n- **Staging Environments**: Provide ADFS authentication for development/staging without direct ADFS integration\n- **Multi-Tier Architectures**: Centralize authentication through a proxy layer\n- **Attribute Filtering**: Control which SAML attributes are passed to downstream applications\n- **Access Control Layering**: Apply additional access control before forwarding authentication\n\n### Proxy Configuration\n\n```env\n# Enable proxy mode\nUW_ADFS_PROXY_ENABLED=true\n\n# Proxy mode: 'server' (for clients), 'client' (to ADFS), 'both'\nUW_ADFS_PROXY_MODE=both\n\n# Upstream ADFS configuration (when acting as client)\nUW_ADFS_UPSTREAM_IDP_ENTITY_ID=https://adfs.uwaterloo.ca/adfs/services/trust\nUW_ADFS_UPSTREAM_SSO_URL=https://adfs.uwaterloo.ca/adfs/ls/\nUW_ADFS_UPSTREAM_SLS_URL=https://adfs.uwaterloo.ca/adfs/ls/\n\n# Proxy settings\nUW_ADFS_PROXY_SESSION_LIFETIME=3600\nUW_ADFS_PROXY_ATTRIBUTE_FILTERING=true\nUW_ADFS_PROXY_SIGN_ASSERTIONS=true\n```\n\n### Proxy Endpoints\n\nWhen proxy mode is enabled, these additional endpoints are available:\n\n- **SSO Endpoint**: `/saml/proxy/sso` - Receives authentication requests from client apps\n- **ACS Endpoint**: `/saml/proxy/acs` - Processes responses from upstream ADFS\n- **SLS Endpoint**: `/saml/proxy/sls` - Handles logout requests\n- **Metadata**: `/saml/proxy/metadata` - Proxy metadata for client applications\n- **Status**: `/saml/proxy/status` - Proxy configuration and health status\n\n### Client Application Configuration\n\nClient applications should configure their SAML settings to use your proxy:\n\n```php\n// Client app SAML configuration\n'idp' => [\n    'entityId' => 'https://your-proxy.uwaterloo.ca/proxy',\n    'singleSignOnService' => [\n        'url' => 'https://your-proxy.uwaterloo.ca/saml/proxy/sso',\n        'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',\n    ],\n    'singleLogoutService' => [\n        'url' => 'https://your-proxy.uwaterloo.ca/saml/proxy/sls',\n        'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',\n    ],\n],\n```\n\n### Proxy Flow\n\n1. **Client Request**: Client app sends SAML auth request to proxy SSO endpoint\n2. **Request Processing**: Proxy validates and stores client context\n3. **Upstream Forward**: Proxy forwards authentication to UW ADFS\n4. **ADFS Response**: UW ADFS authenticates user and responds to proxy\n5. **Access Control**: Proxy applies access control rules\n6. **Attribute Filtering**: Proxy filters attributes based on configuration\n7. **Client Response**: Proxy generates and sends SAML response to client\n\n## Key Benefits\n\n1. **Always Up-to-Date**: Metadata is fetched from authoritative UW ADFS sources\n2. **High Performance**: Intelligent caching reduces network latency\n3. **Reliable**: Robust fallback ensures service continuity during outages\n4. **Low Maintenance**: No manual XML file updates required\n5. **Comprehensive Monitoring**: Clear logging and administrative commands\n6. **Flexible Configuration**: Adaptable behavior for different environments\n7. **Advanced Access Control**: Department, group, and whitelist filtering\n8. **SAML Proxy Support**: Act as intermediary for staging and multi-tier scenarios\n9. **Backward Compatible**: Existing installations work without changes">
 
 ## Security Considerations
 
