@@ -286,7 +286,26 @@ If you encounter metadata-related issues:
 
 ### Common Issues
 
-1. **Certificate Issues**: Ensure the SAML metadata is accessible and contains valid certificates\n2. **Clock Skew**: SAML assertions are time-sensitive. Ensure server time is synchronized\n3. **URL Mismatch**: Ensure the URLs in your configuration match exactly with what's configured in ADFS\n4. **Network Issues**: Check firewall rules if metadata fetching fails\n5. **Cache Problems**: Clear metadata cache if you see stale certificate errors\n6. **Proxy Issues**: When using proxy mode, check proxy status and logs\n\n   ```bash\n   # Check proxy status\n   curl https://your-app.uwaterloo.ca/saml/proxy/status\n   \n   # Check proxy logs\n   tail -f storage/logs/laravel.log | grep \"UW ADFS Proxy\"\n   ```\n\n   Common proxy issues:\n   - **Missing Client Context**: Session data lost between request and response\n   - **Upstream Timeout**: UW ADFS taking too long to respond\n   - **Attribute Filtering**: Required attributes being filtered out\n   - **Invalid Client Requests**: Malformed SAML requests from client apps">
+1. **Certificate Issues**: Ensure the SAML metadata is accessible and contains valid certificates
+2. **Clock Skew**: SAML assertions are time-sensitive. Ensure server time is synchronized
+3. **URL Mismatch**: Ensure the URLs in your configuration match exactly with what's configured in ADFS
+4. **Network Issues**: Check firewall rules if metadata fetching fails
+5. **Cache Problems**: Clear metadata cache if you see stale certificate errors
+6. **Proxy Issues**: When using proxy mode, check proxy status and logs
+
+   ```bash
+   # Check proxy status
+   curl https://your-app.uwaterloo.ca/saml/proxy/status
+   
+   # Check proxy logs
+   tail -f storage/logs/laravel.log | grep "UW ADFS Proxy"
+   ```
+
+   Common proxy issues:
+   - **Missing Client Context**: Session data lost between request and response
+   - **Upstream Timeout**: UW ADFS taking too long to respond
+   - **Attribute Filtering**: Required attributes being filtered out
+   - **Invalid Client Requests**: Malformed SAML requests from client apps">
 
 ## Access Control & User Filtering
 
@@ -424,7 +443,73 @@ class DashboardController extends Controller
 }
 ```
 
-## SAML Proxy/Staging AP Support\n\nThe package now supports **SAML Proxy mode** (also known as Staging Authentication Proxy), allowing your application to act as an intermediary between client applications and UW ADFS. This is particularly useful for:\n\n- **Staging Environments**: Provide ADFS authentication for development/staging without direct ADFS integration\n- **Multi-Tier Architectures**: Centralize authentication through a proxy layer\n- **Attribute Filtering**: Control which SAML attributes are passed to downstream applications\n- **Access Control Layering**: Apply additional access control before forwarding authentication\n\n### Proxy Configuration\n\n```env\n# Enable proxy mode\nUW_ADFS_PROXY_ENABLED=true\n\n# Proxy mode: 'server' (for clients), 'client' (to ADFS), 'both'\nUW_ADFS_PROXY_MODE=both\n\n# Upstream ADFS configuration (when acting as client)\nUW_ADFS_UPSTREAM_IDP_ENTITY_ID=https://adfs.uwaterloo.ca/adfs/services/trust\nUW_ADFS_UPSTREAM_SSO_URL=https://adfs.uwaterloo.ca/adfs/ls/\nUW_ADFS_UPSTREAM_SLS_URL=https://adfs.uwaterloo.ca/adfs/ls/\n\n# Proxy settings\nUW_ADFS_PROXY_SESSION_LIFETIME=3600\nUW_ADFS_PROXY_ATTRIBUTE_FILTERING=true\nUW_ADFS_PROXY_SIGN_ASSERTIONS=true\n```\n\n### Proxy Endpoints\n\nWhen proxy mode is enabled, these additional endpoints are available:\n\n- **SSO Endpoint**: `/saml/proxy/sso` - Receives authentication requests from client apps\n- **ACS Endpoint**: `/saml/proxy/acs` - Processes responses from upstream ADFS\n- **SLS Endpoint**: `/saml/proxy/sls` - Handles logout requests\n- **Metadata**: `/saml/proxy/metadata` - Proxy metadata for client applications\n- **Status**: `/saml/proxy/status` - Proxy configuration and health status\n\n### Client Application Configuration\n\nClient applications should configure their SAML settings to use your proxy:\n\n```php\n// Client app SAML configuration\n'idp' => [\n    'entityId' => 'https://your-proxy.uwaterloo.ca/proxy',\n    'singleSignOnService' => [\n        'url' => 'https://your-proxy.uwaterloo.ca/saml/proxy/sso',\n        'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',\n    ],\n    'singleLogoutService' => [\n        'url' => 'https://your-proxy.uwaterloo.ca/saml/proxy/sls',\n        'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',\n    ],\n],\n```\n\n### Proxy Flow\n\n1. **Client Request**: Client app sends SAML auth request to proxy SSO endpoint\n2. **Request Processing**: Proxy validates and stores client context\n3. **Upstream Forward**: Proxy forwards authentication to UW ADFS\n4. **ADFS Response**: UW ADFS authenticates user and responds to proxy\n5. **Access Control**: Proxy applies access control rules\n6. **Attribute Filtering**: Proxy filters attributes based on configuration\n7. **Client Response**: Proxy generates and sends SAML response to client\n\n## Key Benefits\n\n1. **Always Up-to-Date**: Metadata is fetched from authoritative UW ADFS sources\n2. **High Performance**: Intelligent caching reduces network latency\n3. **Reliable**: Robust fallback ensures service continuity during outages\n4. **Low Maintenance**: No manual XML file updates required\n5. **Comprehensive Monitoring**: Clear logging and administrative commands\n6. **Flexible Configuration**: Adaptable behavior for different environments\n7. **Advanced Access Control**: Department, group, and whitelist filtering\n8. **SAML Proxy Support**: Act as intermediary for staging and multi-tier scenarios\n9. **Backward Compatible**: Existing installations work without changes">
+## SAML Proxy/Staging AP Support
+
+The package now supports **SAML Proxy mode** (also known as Staging Authentication Proxy), allowing your application to act as an intermediary between client applications and UW ADFS. This is particularly useful for:
+
+- **Staging Environments**: Provide ADFS authentication for development/staging without direct ADFS integration
+- **Multi-Tier Architectures**: Centralize authentication through a proxy layer
+- **Attribute Filtering**: Control which SAML attributes are passed to downstream applications
+- **Access Control Layering**: Apply additional access control before forwarding authentication
+
+### Proxy Configuration
+
+```env
+# Enable proxy mode
+UW_ADFS_PROXY_ENABLED=true
+
+# Proxy mode: 'server' (for clients), 'client' (to ADFS), 'both'
+UW_ADFS_PROXY_MODE=both
+
+# Upstream ADFS configuration (when acting as client)
+UW_ADFS_UPSTREAM_IDP_ENTITY_ID=https://adfs.uwaterloo.ca/adfs/services/trust
+UW_ADFS_UPSTREAM_SSO_URL=https://adfs.uwaterloo.ca/adfs/ls/
+UW_ADFS_UPSTREAM_SLS_URL=https://adfs.uwaterloo.ca/adfs/ls/
+
+# Proxy settings
+UW_ADFS_PROXY_SESSION_LIFETIME=3600
+UW_ADFS_PROXY_ATTRIBUTE_FILTERING=true
+UW_ADFS_PROXY_SIGN_ASSERTIONS=true
+```
+
+### Proxy Endpoints
+
+When proxy mode is enabled, these additional endpoints are available:
+
+- **SSO Endpoint**: `/saml/proxy/sso` - Receives authentication requests from client apps
+- **ACS Endpoint**: `/saml/proxy/acs` - Processes responses from upstream ADFS
+- **SLS Endpoint**: `/saml/proxy/sls` - Handles logout requests
+- **Metadata**: `/saml/proxy/metadata` - Proxy metadata for client applications
+- **Status**: `/saml/proxy/status` - Proxy configuration and health status
+
+### Client Application Configuration
+
+Client applications should configure their SAML settings to use your proxy:
+
+```php
+// Client app SAML configuration
+'idp' => [
+    'entityId' => 'https://your-proxy.uwaterloo.ca/proxy',
+    'singleSignOnService' => [
+        'url' => 'https://your-proxy.uwaterloo.ca/saml/proxy/sso',
+        'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
+    ],
+    'singleLogoutService' => [
+        'url' => 'https://your-proxy.uwaterloo.ca/saml/proxy/sls',
+        'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
+    ],
+],
+```
+
+### Proxy Flow
+
+1. **Client Request**: Client app sends SAML auth request to proxy SSO endpoint
+2. **Request Processing**: Proxy validates and stores client context
+3. **Upstream Forward**: Proxy forwards authentication to UW ADFS
+4. **ADFS Response**: UW ADFS authenticates user and responds to proxy
+5. **Access Control**: Proxy applies access control rules
+6. **Attribute Filtering**: Proxy filters attributes based on configuration
+7. **Client Response**: Proxy generates and sends SAML response to client\n\n## Key Benefits\n\n1. **Always Up-to-Date**: Metadata is fetched from authoritative UW ADFS sources\n2. **High Performance**: Intelligent caching reduces network latency\n3. **Reliable**: Robust fallback ensures service continuity during outages\n4. **Low Maintenance**: No manual XML file updates required\n5. **Comprehensive Monitoring**: Clear logging and administrative commands\n6. **Flexible Configuration**: Adaptable behavior for different environments\n7. **Advanced Access Control**: Department, group, and whitelist filtering\n8. **SAML Proxy Support**: Act as intermediary for staging and multi-tier scenarios\n9. **Backward Compatible**: Existing installations work without changes">
 
 ## Security Considerations
 
