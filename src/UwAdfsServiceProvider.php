@@ -4,6 +4,8 @@ namespace WaterlooBae\UwAdfs;
 
 use Illuminate\Support\ServiceProvider;
 use WaterlooBae\UwAdfs\Services\AdfsService;
+use WaterlooBae\UwAdfs\Services\ProxyService;
+use WaterlooBae\UwAdfs\Services\AccessControlService;
 
 class UwAdfsServiceProvider extends ServiceProvider
 {
@@ -23,6 +25,16 @@ class UwAdfsServiceProvider extends ServiceProvider
 
         $this->app->singleton(AdfsService::class, function ($app) {
             return $app['uw-adfs'];
+        });
+
+        // Register ProxyService
+        $this->app->singleton(ProxyService::class, function ($app) {
+            return new ProxyService($app->make(AdfsService::class));
+        });
+
+        // Register AccessControlService (used by ProxyService)
+        $this->app->bind(AccessControlService::class, function ($app) {
+            return new AccessControlService(config('uw-adfs.access_control', []));
         });
     }
 
