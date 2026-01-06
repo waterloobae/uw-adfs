@@ -13,7 +13,7 @@ Insert following codes in /bootstrap/app.php to avoid 419 Page Expired error
        'saml/sls',
     ]);
 })
-'''
+```
 
 ## Features
 
