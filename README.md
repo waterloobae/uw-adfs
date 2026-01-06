@@ -376,9 +376,9 @@ See `examples/access-control-examples.env` for complete configuration scenarios.
 ```env
 # Basic ADFS Configuration
 UW_ADFS_ENVIRONMENT=production
-UW_ADFS_SP_ENTITY_ID=https://cemc.uwaterloo.ca
-UW_ADFS_SP_ACS_URL=https://cemc.uwaterloo.ca/saml/acs
-UW_ADFS_SP_SLS_URL=https://cemc.uwaterloo.ca/saml/sls
+UW_ADFS_SP_ENTITY_ID=https://test.uwaterloo.ca
+UW_ADFS_SP_ACS_URL=https://test.uwaterloo.ca/saml/acs
+UW_ADFS_SP_SLS_URL=https://test.uwaterloo.ca/saml/sls
 
 # Access Control - Mathematics Department Only
 UW_ADFS_DEPARTMENT_RESTRICTION=true
