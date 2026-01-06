@@ -2,6 +2,19 @@
 
 This Laravel package provides SAML authentication integration with University of Waterloo's Active Directory Federation Services (ADFS).
 
+## CSRF exception
+Insert following codes in /bootstrap/app.php to avoid 419 Page Expired error
+```php
+->withMiddleware(function (Middleware $middleware): void {
+     $middleware->validateCsrfTokens(except: [
+       'saml/proxy/acs',
+       'saml/proxy/sls',
+       'saml/acs',
+       'saml/sls',
+    ]);
+})
+'''
+
 ## Features
 
 - SAML 2.0 authentication with UW ADFS
