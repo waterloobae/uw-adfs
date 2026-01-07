@@ -2,6 +2,7 @@
 
 namespace WaterlooBae\UwAdfs\Services;
 
+use Exception;
 use OneLogin\Saml2\Auth;
 use OneLogin\Saml2\Settings;
 use OneLogin\Saml2\Utils;
@@ -209,6 +210,7 @@ class AdfsService
 
         $errors = $this->samlAuth->getErrors();
         if (!empty($errors)) {
+            Log::error('SAML Response error: ' . implode(', ', $errors));
             throw new \Exception('SAML Response error: ' . implode(', ', $errors));
         }
 

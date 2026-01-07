@@ -2,7 +2,6 @@
 
 namespace WaterlooBae\UwAdfs\Http\Controllers;
 
-use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response;
@@ -38,14 +37,50 @@ class AdfsController extends Controller
      */
     public function acs(Request $request): RedirectResponse
     {
-        Log::info('ACS called', ['request' => $request->all()]);
         try {
             $samlData = $this->adfsService->acs();
-            Log::info('SAML data received', ['samlData' => $samlData]);
+            
+            // Check access control
+            $accessControl = new AccessControlService(config('uw-adfs.access_control', []));
+            $accessResult = $accessControl->isUserAuthorized($samlData['attributes']);
+            
+            // Log access decision
+            $userData = $this->adfsService->mapAttributes($samlData['attributes']);
+            $email = $userData['email'] ?? 'unknown';
+            $accessControl->logAccessDecision($email, $accessResult);
+            
+            if (!$accessResult['authorized']) {
+                return redirect(config('uw-adfs.access_control.access_denied_url', '/access-denied'))
+                    ->with('error', $accessResult['reason'])
+                    ->with('access_control_details', $accessResult);
+            }
+            
+            // Create or update user from SAML attributes
+            $user = $this->adfsService->createOrUpdateUser($samlData['attributes']);
+            
+            if ($user) {
+                // Log the user in
+                Auth::login($user);
+                
+                // Store SAML session data
+                Session::put('saml_session', [
+                    'nameId' => $samlData['nameId'],
+                    'sessionIndex' => $samlData['sessionIndex'],
+                    'attributes' => $samlData['attributes'],
+                    'access_control_result' => $accessResult,
+                ]);
+                
+                // Get return URL from RelayState or default
+                $returnTo = $request->get('RelayState', config('app.url') . '/dashboard');
+                
+                return redirect($returnTo)->with('success', 'Successfully logged in via ADFS');
+            }
+            
+            return redirect('/login')->with('error', 'Unable to create user account');
+            
         } catch (\Exception $e) {
-            Log::error('ACS processing failed', ['error' => $e->getMessage()]);
-            return redirect('/')->with('error', 'SAML response processing failed: ' . $e->getMessage());
-        } 
+            return redirect('/login')->with('error', 'ADFS authentication failed: ' . $e->getMessage());
+        }
     }
 
     /**
