@@ -114,7 +114,8 @@ return [
         'email' => 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
         'first_name' => 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname',
         'last_name' => 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname',
-        
+        'uwid' => 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/samaccountname',
+
         // Organizational attributes
         'department' => 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/department',
         'title' => 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/title',
