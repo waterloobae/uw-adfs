@@ -38,12 +38,12 @@ class AdfsController extends Controller
      */
     public function acs(Request $request): RedirectResponse
     {
-        Log::classic()->info('ACS called', ['request' => $request->all()]);
+        Log::info('ACS called', ['request' => $request->all()]);
         try {
             $samlData = $this->adfsService->acs();
-            Log::classic()->info('SAML data received', ['samlData' => $samlData]);
+            Log::info('SAML data received', ['samlData' => $samlData]);
         } catch (\Exception $e) {
-            Log::classic()->error('ACS processing failed', ['error' => $e->getMessage()]);
+            Log::error('ACS processing failed', ['error' => $e->getMessage()]);
             return redirect('/')->with('error', 'SAML response processing failed: ' . $e->getMessage());
         } 
     }
