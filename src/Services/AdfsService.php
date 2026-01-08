@@ -37,29 +37,29 @@ class AdfsService
     public function buildSamlConfig(): array
     {
         $environment = $this->config['environment'];
-        Log::debug("Building SAML config for environment: {$environment}");
+        // Log::debug("Building SAML config for environment: {$environment}");
         $idpConfig = $this->config['idp'][$environment];
 
-        Log::debug("IdP EntityID: " . ($idpConfig['entityId'] ?? 'not set'));
+        // Log::debug("IdP EntityID: " . ($idpConfig['entityId'] ?? 'not set'));
         
         // Handle singleSignOnService which can be a string or array
         $ssoService = $idpConfig['singleSignOnService'] ?? 'not set';
         $ssoUrl = is_array($ssoService) ? ($ssoService['url'] ?? 'array-no-url') : $ssoService;
-        Log::debug("IdP SSO URL: {$ssoUrl}");
+        // Log::debug("IdP SSO URL: {$ssoUrl}");
 
         // Load IdP certificate from XML metadata if available
         $metadataSource = $idpConfig['metadata_url'] ?? $idpConfig['metadata_file'] ?? 'auto';
-        Log::debug("Metadata source: {$metadataSource}");
+        // Log::debug("Metadata source: {$metadataSource}");
         $x509cert = $this->extractCertificateFromMetadata($metadataSource);
-        Log::debug("Certificate loaded, length: " . strlen($x509cert) . " characters");
+        // Log::debug("Certificate loaded, length: " . strlen($x509cert) . " characters");
         
         $spEntityId = $this->config['sp']['entityId'] ?? 'not set';
         
         // Handle assertionConsumerService which can be a string or array
         $acsService = $this->config['sp']['assertionConsumerService'] ?? 'not set';
         $acsUrl = is_array($acsService) ? ($acsService['url'] ?? 'array-no-url') : $acsService;
-        Log::debug("SP EntityID: {$spEntityId}");
-        Log::debug("SP ACS URL: {$acsUrl}");
+        // Log::debug("SP EntityID: {$spEntityId}");
+        // Log::debug("SP ACS URL: {$acsUrl}");
 
         return [
             'sp' => [
@@ -114,7 +114,7 @@ class AdfsService
                 return $cert;
             }
             
-            Log::warning("No X509Certificate nodes found in metadata");
+            // Log::warning("No X509Certificate nodes found in metadata");
             return '';
         } catch (\Exception $e) {
             Log::error("Error extracting certificate: " . $e->getMessage());
@@ -241,10 +241,10 @@ class AdfsService
     public function acs(): array
     {
         Log::info("Processing SAML response");
-        Log::debug("SAML Auth initialized, checking for response");
+        // Log::debug("SAML Auth initialized, checking for response");
         
         $this->samlAuth->processResponse();
-        Log::debug("SAML response processed");
+        // Log::debug("SAML response processed");
 
         $errors = $this->samlAuth->getErrors();
         if (!empty($errors)) {
@@ -255,24 +255,24 @@ class AdfsService
             // Log detailed status information
             $responseXml = $this->samlAuth->getLastResponseXML();
             if (!empty($responseXml)) {
-                Log::debug("SAML Response XML (first 1000 chars): " . substr($responseXml, 0, 1000));
+                // Log::debug("SAML Response XML (first 1000 chars): " . substr($responseXml, 0, 1000));
             }
             
             throw new \Exception('SAML Response error: ' . implode(', ', $errors));
         }
 
-        Log::debug("No SAML errors, checking authentication status");
+        // Log::debug("No SAML errors, checking authentication status");
         
         if (!$this->samlAuth->isAuthenticated()) {
             Log::error('User not authenticated after processing response');
-            Log::debug("SAML Auth session index: " . $this->samlAuth->getSessionIndex());
-            Log::debug("SAML nameId: " . $this->samlAuth->getNameId());
+            // Log::debug("SAML Auth session index: " . $this->samlAuth->getSessionIndex());
+            // Log::debug("SAML nameId: " . $this->samlAuth->getNameId());
             throw new \Exception('SAML authentication failed');
         }
 
         Log::info("SAML authentication successful");
-        Log::debug("User nameId: " . $this->samlAuth->getNameId());
-        Log::debug("User attributes: " . json_encode($this->samlAuth->getAttributes(), JSON_PRETTY_PRINT));
+        // Log::debug("User nameId: " . $this->samlAuth->getNameId());
+        // Log::debug("User attributes: " . json_encode($this->samlAuth->getAttributes(), JSON_PRETTY_PRINT));
 
         return [
             'authenticated' => true,
