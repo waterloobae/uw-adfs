@@ -230,7 +230,7 @@ class AdfsService
     /**
      * Initiate SAML login
      */
-    public function login(string $returnTo = null): void
+    public function login(?string $returnTo = null): void
     {
         $this->samlAuth->login($returnTo);
     }
@@ -286,7 +286,7 @@ class AdfsService
     /**
      * Initiate SAML logout
      */
-    public function logout(string $returnTo = null, string $nameId = null, string $sessionIndex = null): void
+    public function logout(?string $returnTo = null, ?string $nameId = null, ?string $sessionIndex = null): void
     {
         $this->samlAuth->logout($returnTo, [], $nameId, $sessionIndex);
     }

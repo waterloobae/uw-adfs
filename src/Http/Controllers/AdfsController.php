@@ -78,9 +78,7 @@ class AdfsController extends Controller
             }
             
             // User creation failed - properly log out from ADFS
-            $returnTo = config('app.url');
-            $this->adfsService->logout($returnTo, $samlData['nameId'] ?? null, $samlData['sessionIndex'] ?? null);
-            
+            $this->adfsService->sls();
             // Clear session
             Session::flush();
             Log::error('ADFS user creation failed for attributes: ' . json_encode($samlData['attributes']) ?? 'N/A');
@@ -88,9 +86,7 @@ class AdfsController extends Controller
             
         } catch (\Exception $e) {
 
-            $returnTo = config('app.url');
-            $this->adfsService->logout($returnTo, $samlSession['nameId'] ?? null, $samlSession['sessionIndex'] ?? null);
-            
+            $this->adfsService->sls();            
             // Clear session
             Session::flush();
             Log::error('ADFS authentication failed: ' . $e->getMessage());
