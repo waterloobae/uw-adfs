@@ -211,6 +211,7 @@ class AdfsService
         $errors = $this->samlAuth->getErrors();
         if (!empty($errors)) {
             Log::error('SAML Response error: ' . $this->samlAuth->getLastErrorReason());
+            Log::error('SAML Response Status: ' . $this->samlAuth->getLastResponseXML());
             Log::error('SAML Response error: ' . implode(', ', $errors));
             throw new \Exception('SAML Response error: ' . implode(', ', $errors));
         }
