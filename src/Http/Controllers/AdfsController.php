@@ -8,6 +8,7 @@ use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Log;
 use WaterlooBae\UwAdfs\Services\AdfsService;
 use WaterlooBae\UwAdfs\Services\AccessControlService;
 
@@ -82,20 +83,17 @@ class AdfsController extends Controller
             
             // Clear session
             Session::flush();
+            Log::error('ADFS user creation failed for attributes: ' . json_encode($samlData['attributes']) ?? 'N/A');
             return redirect('saml/login')->with('error', 'Unable to create user account');
             
         } catch (\Exception $e) {
-            // Get SAML session data if available
-            $samlSession = Session::get('saml_session');
-            
-            // Log out from ADFS if we have session data
-            if ($samlSession) {
-                $returnTo = config('app.url');
-                $this->adfsService->logout($returnTo, $samlSession['nameId'] ?? null, $samlSession['sessionIndex'] ?? null);
-            }
+
+            $returnTo = config('app.url');
+            $this->adfsService->logout($returnTo, $samlSession['nameId'] ?? null, $samlSession['sessionIndex'] ?? null);
             
             // Clear session
             Session::flush();
+            Log::error('ADFS authentication failed: ' . $e->getMessage());
             return redirect('saml/login')->with('error', 'ADFS authentication failed: ' . $e->getMessage());
         }
     }

@@ -250,7 +250,7 @@ class AdfsService
         if (!empty($errors)) {
             Log::error('SAML Response errors: ' . implode(', ', $errors));
             Log::error('SAML error reason: ' . $this->samlAuth->getLastErrorReason());
-            Log::error('Last response XML: ' . $this->samlAuth->getLastResponseXML());
+            // Log::error('Last response XML: ' . $this->samlAuth->getLastResponseXML());
             
             // Log detailed status information
             $responseXml = $this->samlAuth->getLastResponseXML();
