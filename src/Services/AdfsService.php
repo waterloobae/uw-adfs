@@ -37,11 +37,22 @@ class AdfsService
     public function buildSamlConfig(): array
     {
         $environment = $this->config['environment'];
+        Log::debug("Building SAML config for environment: {$environment}");
         $idpConfig = $this->config['idp'][$environment];
+
+        Log::debug("IdP EntityID: " . ($idpConfig['entityId'] ?? 'not set'));
+        Log::debug("IdP SSO URL: " . ($idpConfig['singleSignOnService'] ?? 'not set'));
 
         // Load IdP certificate from XML metadata if available
         $metadataSource = $idpConfig['metadata_url'] ?? $idpConfig['metadata_file'] ?? 'auto';
+        Log::debug("Metadata source: {$metadataSource}");
         $x509cert = $this->extractCertificateFromMetadata($metadataSource);
+        Log::debug("Certificate loaded, length: " . strlen($x509cert) . " characters");
+        
+        $spEntityId = $this->config['sp']['entityId'] ?? 'not set';
+        $acsUrl = $this->config['sp']['assertionConsumerService'] ?? 'not set';
+        Log::debug("SP EntityID: {$spEntityId}");
+        Log::debug("SP ACS URL: {$acsUrl}");
 
         return [
             'sp' => [
@@ -67,25 +78,41 @@ class AdfsService
      */
     protected function extractCertificateFromMetadata(string $metadataSource): string
     {
-        $xml = $this->getMetadataXml($metadataSource);
-        
-        if (empty($xml)) {
+        try {
+            $xml = $this->getMetadataXml($metadataSource);
+            
+            if (empty($xml)) {
+                Log::warning("Metadata XML is empty for source: {$metadataSource}");
+                return '';
+            }
+            
+            Log::debug("Metadata XML retrieved, size: " . strlen($xml) . " bytes");
+
+            $doc = new \DOMDocument();
+            if (!@$doc->loadXML($xml)) {
+                Log::error("Failed to parse metadata XML");
+                return '';
+            }
+            Log::debug("Metadata XML parsed successfully");
+
+            $xpath = new \DOMXPath($doc);
+            $xpath->registerNamespace('ds', 'http://www.w3.org/2000/09/xmldsig#');
+            
+            $certNodes = $xpath->query('//ds:X509Certificate');
+            Log::debug("Found {$certNodes->length} X509Certificate node(s)");
+            
+            if ($certNodes->length > 0) {
+                $cert = $certNodes->item(0)->nodeValue;
+                Log::info("Successfully extracted X509 certificate (" . strlen($cert) . " chars)");
+                return $cert;
+            }
+            
+            Log::warning("No X509Certificate nodes found in metadata");
+            return '';
+        } catch (\Exception $e) {
+            Log::error("Error extracting certificate: " . $e->getMessage());
             return '';
         }
-
-        $doc = new \DOMDocument();
-        $doc->loadXML($xml);
-
-        $xpath = new \DOMXPath($doc);
-        $xpath->registerNamespace('ds', 'http://www.w3.org/2000/09/xmldsig#');
-        
-        $certNodes = $xpath->query('//ds:X509Certificate');
-        
-        if ($certNodes->length > 0) {
-            return $certNodes->item(0)->nodeValue;
-        }
-
-        return '';
     }
 
     /**
@@ -206,19 +233,39 @@ class AdfsService
      */
     public function acs(): array
     {
+        Log::info("Processing SAML response");
+        Log::debug("SAML Auth settings: " . json_encode($this->samlAuth->getSettings()->getDebugInfo(), JSON_PRETTY_PRINT));
+        
         $this->samlAuth->processResponse();
+        Log::debug("SAML response processed");
 
         $errors = $this->samlAuth->getErrors();
         if (!empty($errors)) {
-            Log::error('SAML Response error: ' . $this->samlAuth->getLastErrorReason());
-            Log::error('SAML Response Status: ' . $this->samlAuth->getLastResponseXML());
-            Log::error('SAML Response error: ' . implode(', ', $errors));
+            Log::error('SAML Response errors: ' . implode(', ', $errors));
+            Log::error('SAML error reason: ' . $this->samlAuth->getLastErrorReason());
+            Log::error('Last response XML: ' . $this->samlAuth->getLastResponseXML());
+            
+            // Log detailed status information
+            $responseXml = $this->samlAuth->getLastResponseXML();
+            if (!empty($responseXml)) {
+                Log::debug("SAML Response XML (first 1000 chars): " . substr($responseXml, 0, 1000));
+            }
+            
             throw new \Exception('SAML Response error: ' . implode(', ', $errors));
         }
 
+        Log::debug("No SAML errors, checking authentication status");
+        
         if (!$this->samlAuth->isAuthenticated()) {
+            Log::error('User not authenticated after processing response');
+            Log::debug("SAML Auth session index: " . $this->samlAuth->getSessionIndex());
+            Log::debug("SAML nameId: " . $this->samlAuth->getNameId());
             throw new \Exception('SAML authentication failed');
         }
+
+        Log::info("SAML authentication successful");
+        Log::debug("User nameId: " . $this->samlAuth->getNameId());
+        Log::debug("User attributes: " . json_encode($this->samlAuth->getAttributes(), JSON_PRETTY_PRINT));
 
         return [
             'authenticated' => true,
