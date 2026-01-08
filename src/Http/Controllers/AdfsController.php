@@ -75,7 +75,7 @@ class AdfsController extends Controller
                 
                 // Get return URL from RelayState or default
                 $returnTo = $request->get('RelayState', config('app.url') . '/dashboard');
-                
+                Log::info('ADFS user logged in: ' . $email);
                 return redirect($returnTo)->with('success', 'Successfully logged in via ADFS');
             }
             
