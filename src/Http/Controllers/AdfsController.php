@@ -9,6 +9,7 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use WaterlooBae\UwAdfs\Services\AdfsService;
 use WaterlooBae\UwAdfs\Services\AccessControlService;
 
@@ -57,6 +58,7 @@ class AdfsController extends Controller
             }
             
             // Create or update user from SAML attributes
+            $samlData['attributes']['password'] = bcrypt(Str::random(32));
             $user = $this->adfsService->createOrUpdateUser($samlData['attributes']);
             
             if ($user) {
