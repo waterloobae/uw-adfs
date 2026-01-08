@@ -76,18 +76,27 @@ class AdfsController extends Controller
                 return redirect($returnTo)->with('success', 'Successfully logged in via ADFS');
             }
             
-            // Clear sensitive ADFS data before redirect
-            Session::forget('saml_session');
-            Auth::logout();
+            // User creation failed - properly log out from ADFS
+            $returnTo = config('app.url');
+            $this->adfsService->logout($returnTo, $samlData['nameId'] ?? null, $samlData['sessionIndex'] ?? null);
+            
+            // Clear session
             Session::flush();
-            return redirect('saml/sls')->with('error', 'Unable to create user account');
+            return redirect('saml/login')->with('error', 'Unable to create user account');
             
         } catch (\Exception $e) {
-            // Clear sensitive ADFS data before redirect
-            Session::forget('saml_session');
-            Auth::logout();
+            // Get SAML session data if available
+            $samlSession = Session::get('saml_session');
+            
+            // Log out from ADFS if we have session data
+            if ($samlSession) {
+                $returnTo = config('app.url');
+                $this->adfsService->logout($returnTo, $samlSession['nameId'] ?? null, $samlSession['sessionIndex'] ?? null);
+            }
+            
+            // Clear session
             Session::flush();
-            return redirect('saml/sls')->with('error', 'ADFS authentication failed: ' . $e->getMessage());
+            return redirect('saml/login')->with('error', 'ADFS authentication failed: ' . $e->getMessage());
         }
     }
 
