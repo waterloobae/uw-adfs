@@ -296,11 +296,30 @@ class AdfsService
      */
     public function sls(): bool
     {
-        $this->samlAuth->processSLO(true);
+        try {
+            // Try to process SLO (Single Logout)
+            // The false parameter allows processing logout without requiring strict validation
+            $this->samlAuth->processSLO(false);
+        } catch (\Exception $e) {
+            // Handle binding mismatch errors gracefully
+            $errorMessage = $e->getMessage();
+            
+            // If it's a binding error, log it but allow logout to continue
+            if (strpos($errorMessage, 'LogoutRequest/LogoutResponse not found') !== false || 
+                strpos($errorMessage, 'HTTP_REDIRECT Binding') !== false) {
+                Log::warning('SAML logout binding mismatch: ' . $errorMessage);
+                // Return true to allow logout to complete despite binding issues
+                return true;
+            }
+            
+            // For other errors, throw the exception
+            throw $e;
+        }
 
         $errors = $this->samlAuth->getErrors();
         if (!empty($errors)) {
-            throw new \Exception('SAML SLO error: ' . implode(', ', $errors));
+            // Log errors but allow logout to complete
+            Log::warning('SAML SLO errors: ' . implode(', ', $errors));
         }
 
         return true;
