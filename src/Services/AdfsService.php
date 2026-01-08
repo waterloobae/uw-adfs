@@ -41,7 +41,11 @@ class AdfsService
         $idpConfig = $this->config['idp'][$environment];
 
         Log::debug("IdP EntityID: " . ($idpConfig['entityId'] ?? 'not set'));
-        Log::debug("IdP SSO URL: " . ($idpConfig['singleSignOnService'] ?? 'not set'));
+        
+        // Handle singleSignOnService which can be a string or array
+        $ssoService = $idpConfig['singleSignOnService'] ?? 'not set';
+        $ssoUrl = is_array($ssoService) ? ($ssoService['url'] ?? 'array-no-url') : $ssoService;
+        Log::debug("IdP SSO URL: {$ssoUrl}");
 
         // Load IdP certificate from XML metadata if available
         $metadataSource = $idpConfig['metadata_url'] ?? $idpConfig['metadata_file'] ?? 'auto';
@@ -50,7 +54,10 @@ class AdfsService
         Log::debug("Certificate loaded, length: " . strlen($x509cert) . " characters");
         
         $spEntityId = $this->config['sp']['entityId'] ?? 'not set';
-        $acsUrl = $this->config['sp']['assertionConsumerService'] ?? 'not set';
+        
+        // Handle assertionConsumerService which can be a string or array
+        $acsService = $this->config['sp']['assertionConsumerService'] ?? 'not set';
+        $acsUrl = is_array($acsService) ? ($acsService['url'] ?? 'array-no-url') : $acsService;
         Log::debug("SP EntityID: {$spEntityId}");
         Log::debug("SP ACS URL: {$acsUrl}");
 
