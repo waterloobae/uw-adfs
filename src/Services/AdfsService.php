@@ -241,7 +241,7 @@ class AdfsService
     public function acs(): array
     {
         Log::info("Processing SAML response");
-        Log::debug("SAML Auth settings: " . json_encode($this->samlAuth->getSettings()->getDebugInfo(), JSON_PRETTY_PRINT));
+        Log::debug("SAML Auth initialized, checking for response");
         
         $this->samlAuth->processResponse();
         Log::debug("SAML response processed");
