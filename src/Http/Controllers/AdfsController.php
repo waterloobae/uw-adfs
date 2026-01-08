@@ -76,10 +76,14 @@ class AdfsController extends Controller
                 return redirect($returnTo)->with('success', 'Successfully logged in via ADFS');
             }
             
-            return redirect('/login')->with('error', 'Unable to create user account');
+            // Clear sensitive ADFS data before redirect
+            Session::forget('saml_session');
+            return redirect('saml/login')->with('error', 'Unable to create user account');
             
         } catch (\Exception $e) {
-            return redirect('/login')->with('error', 'ADFS authentication failed: ' . $e->getMessage());
+            // Clear sensitive ADFS data before redirect
+            Session::forget('saml_session');
+            return redirect('saml/login')->with('error', 'ADFS authentication failed: ' . $e->getMessage());
         }
     }
 
