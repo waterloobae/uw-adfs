@@ -109,6 +109,14 @@ class AdfsController extends Controller
         $user = Auth::user();
         $email = $user?->email ?? 'unknown';
         
+        // Get SAML session data before clearing
+        $samlSession = Session::get('saml_session');
+        $nameId = $samlSession['nameId'] ?? null;
+        $sessionIndex = $samlSession['sessionIndex'] ?? null;
+        
+        Log::info("Logout initiated for user: {$email}");
+        Log::debug("SAML logout data - NameID: {$nameId}, SessionIndex: {$sessionIndex}");
+        
         // Clear SAML session data
         Session::forget('saml_session');
         
@@ -121,17 +129,22 @@ class AdfsController extends Controller
         // Regenerate session token to prevent session fixation
         Session::regenerateToken();
         
+        // Attempt to send SAML LogoutRequest
+        if ($nameId && $sessionIndex) {
+            try {
+                Log::info("Sending SAML LogoutRequest to ADFS");
+                $this->adfsService->logout(null, $nameId, $sessionIndex);
+                Log::info("SAML LogoutRequest completed");
+            } catch (\Exception $e) {
+                // Log the error for debugging but don't fail the logout
+                Log::warning("SAML LogoutRequest error: " . $e->getMessage());
+                Log::debug("Exception trace: " . $e->getTraceAsString());
+            }
+        }
+        
         Log::info("User logged out: {$email}");
         
-        // Clear ADFS-related cookies to force re-authentication
-        $response = redirect('/')->with('success', 'Logged out successfully');
-        
-        // Clear ADFS authentication cookies
-        $response->withoutCookie('MSISAuth');
-        $response->withoutCookie('MSISAuth1');
-        $response->withoutCookie('MSISAuthenticated');
-        
-        return $response;
+        return redirect('/')->with('success', 'Logged out successfully');
     }
 
     /**
@@ -169,7 +182,7 @@ class AdfsController extends Controller
     public function attributes(Request $request)
     {
         if (!Auth::check()) {
-            return redirect('/login')->with('error', 'Please log in first');
+            return redirect('saml.login')->with('error', 'Please log in first');
         }
         
         $samlSession = Session::get('saml_session');
