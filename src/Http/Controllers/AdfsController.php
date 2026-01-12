@@ -161,18 +161,26 @@ class AdfsController extends Controller
      */
     public function sls(Request $request): RedirectResponse
     {
+        Log::info("SLS endpoint called - processing ADFS logout response");
+        Log::debug("SLS request params: " . json_encode($request->all()));
+        
         try {
             $this->adfsService->sls();
+            
+            Log::info("ADFS SLS processed successfully");
             
             // Log out from Laravel if not already done
             if (Auth::check()) {
                 Auth::logout();
-                Session::flush();
+                Session::invalidate();
             }
             
+            Log::info("User logged out from Laravel");
             return redirect('/')->with('success', 'Successfully logged out');
             
         } catch (\Exception $e) {
+            Log::error("SLS processing error: " . $e->getMessage());
+            Log::debug("SLS exception trace: " . $e->getTraceAsString());
             return redirect('/')->with('error', 'Logout failed: ' . $e->getMessage());
         }
     }
