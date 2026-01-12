@@ -109,6 +109,7 @@ class AdfsController extends Controller
 
         // Clear SAML session data
         Session::forget('saml_session');
+        cookie()->queue(cookie()->forget('PHPSESSID')); // If OneLogin uses this
         
         // Log out from Laravel
         Auth::logout();
