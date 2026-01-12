@@ -107,9 +107,13 @@ class AdfsController extends Controller
     public function logout(Request $request): RedirectResponse
     {
 
-        // Clear SAML session data
+        // Get SAML session data before clearing
+        $samlSession = Session::get('saml_session');
+        $nameId = $samlSession['nameId'] ?? null;
+        $sessionIndex = $samlSession['sessionIndex'] ?? null;
+        
+        // Clear SAML session data from Laravel
         Session::forget('saml_session');
-        cookie()->queue(cookie()->forget('PHPSESSID')); // If OneLogin uses this
         
         // Log out from Laravel
         Auth::logout();
@@ -119,8 +123,18 @@ class AdfsController extends Controller
         
         // Regenerate session token to prevent session fixation
         Session::regenerateToken();
-                
-        // Don't wait for ADFS response, redirect immediately
+            
+        // Attempt to send SAML LogoutRequest to IdP
+        // This will cause ADFS to terminate the session on its end
+        try {
+            $this->adfsService->logout(null, $nameId, $sessionIndex);
+        } catch (\Exception $e) {
+            // Log but don't fail - user is already logged out locally
+            return redirect('/')->with('success', 'Logged out successfully');
+            // Log::warning("SAML logout to IdP failed: " . $e->getMessage());
+        }
+        
+        // Redirect to home
         return redirect('/')->with('success', 'Logged out successfully');
     }
 
