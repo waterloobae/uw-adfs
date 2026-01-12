@@ -140,7 +140,9 @@ class AdfsController extends Controller
         if ($nameId && $sessionIndex) {
             try {
                 Log::info("Sending SAML LogoutRequest to ADFS");
-                $this->adfsService->logout(null, $nameId, $sessionIndex, $nameIdFormat);
+                // Use logoutall parameter to force ADFS to clear all sessions
+                $returnTo = config('app.url') . '?logoutall=1';
+                $this->adfsService->logout($returnTo, $nameId, $sessionIndex, $nameIdFormat);
                 Log::info("SAML LogoutRequest completed");
             } catch (\Exception $e) {
                 // Log the error for debugging but don't fail the logout
