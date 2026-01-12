@@ -74,15 +74,12 @@ class AdfsController extends Controller
                 ]);
                 
                 // Get return URL from RelayState or default
-                // $returnTo = $request->get('RelayState', config('app.url') . '/dashboard');
                 $returnTo = $request->get('RelayState');
                 if (empty($returnTo) || $returnTo === config('app.url')) {
                     $returnTo = config('app.url') . '/dashboard';
-            }
+                }
                 Log::info('ADFS user logged in: ' . $email);
-                Log::debug('Redirect URL: ' . $returnTo);
-                Log::debug('Auth check: ' . (Auth::check() ? 'authenticated' : 'not authenticated'));
-                Log::debug('Session data: ' . json_encode(Session::get('saml_session')));
+                // Log::debug('Session data: ' . json_encode(Session::get('saml_session')));
 
                 return redirect($returnTo)->with('success', 'Successfully logged in via ADFS');
             }
@@ -107,22 +104,28 @@ class AdfsController extends Controller
     /**
      * Handle SAML logout
      */
-    public function logout(Request $request): void
+    public function logout(Request $request): RedirectResponse
     {
         $samlSession = Session::get('saml_session');
         $nameId = $samlSession['nameId'] ?? null;
         $sessionIndex = $samlSession['sessionIndex'] ?? null;
         
-        // Log out from Laravel
+        // Log out from Laravel immediately
         Auth::logout();
         Session::flush();
         
         $returnTo = $request->get('returnTo', config('app.url'));
         
-        $this->adfsService->logout($returnTo, $nameId, $sessionIndex);
+        try {
+            // Initiate SAML logout (may or may not complete)
+            $this->adfsService->logout($returnTo, $nameId, $sessionIndex);
+        } catch (\Exception $e) {
+            Log::warning('SAML logout initiation failed: ' . $e->getMessage());
+            // Continue with local logout anyway
+        }
         
-        // The OneLogin library will handle the redirect via headers
-        exit();
+        // Don't wait for ADFS response, redirect immediately
+        return redirect('/')->with('success', 'Logged out successfully');
     }
 
     /**
