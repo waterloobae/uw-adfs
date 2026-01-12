@@ -163,6 +163,10 @@ class AdfsController extends Controller
     {
         Log::info("SLS endpoint called - processing ADFS logout response");
         Log::debug("SLS request params: " . json_encode($request->all()));
+        Log::debug("SLS GET params: " . json_encode($request->query->all()));
+        Log::debug("SLS POST params: " . json_encode($request->request->all()));
+        Log::debug("SLS request method: " . $request->method());
+        Log::debug("SLS server vars - SAMLResponse: " . ($request->server('QUERY_STRING') ?? 'N/A'));
         
         try {
             $this->adfsService->sls();
