@@ -106,12 +106,19 @@ class AdfsController extends Controller
      */
     public function logout(Request $request): RedirectResponse
     {
-        $samlSession = Session::get('saml_session');
+
+        // Clear SAML session data
+        Session::forget('saml_session');
         
-        // Log out from Laravel immediately
+        // Log out from Laravel
         Auth::logout();
-        Session::flush();
-            
+        
+        // Invalidate the entire session
+        Session::invalidate();
+        
+        // Regenerate session token to prevent session fixation
+        Session::regenerateToken();
+                
         // Don't wait for ADFS response, redirect immediately
         return redirect('/')->with('success', 'Logged out successfully');
     }
