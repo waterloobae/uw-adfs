@@ -109,11 +109,6 @@ class AdfsController extends Controller
         $user = Auth::user();
         $email = $user?->email ?? 'unknown';
         
-        // Get SAML session data before clearing
-        $samlSession = Session::get('saml_session');
-        $nameId = $samlSession['nameId'] ?? null;
-        $sessionIndex = $samlSession['sessionIndex'] ?? null;
-        
         // Clear SAML session data
         Session::forget('saml_session');
         
@@ -128,21 +123,15 @@ class AdfsController extends Controller
         
         Log::info("User logged out: {$email}");
         
-        // Queue SAML logout in background (fire and forget)
-        // This prevents blocking the logout response if ADFS is slow or returns errors
-        if ($nameId && $sessionIndex) {
-            dispatch(function () use ($nameId, $sessionIndex) {
-                try {
-                    $this->adfsService->logout(null, $nameId, $sessionIndex);
-                    Log::info("Background SAML logout successful");
-                } catch (\Exception $e) {
-                    Log::warning("Background SAML logout failed: " . $e->getMessage());
-                }
-            })->delay(now());
-        }
+        // Clear ADFS-related cookies to force re-authentication
+        $response = redirect('/')->with('success', 'Logged out successfully');
         
-        // Redirect immediately without waiting for SAML logout
-        return redirect('/')->with('success', 'Logged out successfully');
+        // Clear ADFS authentication cookies
+        $response->withoutCookie('MSISAuth');
+        $response->withoutCookie('MSISAuth1');
+        $response->withoutCookie('MSISAuthenticated');
+        
+        return $response;
     }
 
     /**
