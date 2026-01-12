@@ -130,12 +130,12 @@ class AdfsController extends Controller
             $this->adfsService->logout(null, $nameId, $sessionIndex);
         } catch (\Exception $e) {
             // Log but don't fail - user is already logged out locally
-            return redirect('/')->with('success', 'Logged out successfully');
             // Log::warning("SAML logout to IdP failed: " . $e->getMessage());
+            return redirect(config('app.url'))->with('success', 'Logged out successfully');
         }
         
-        // Redirect to home
-        return redirect('/')->with('success', 'Logged out successfully');
+        // Redirect to app root
+        return redirect(config('app.url'))->with('success', 'Logged out successfully');
     }
 
     /**
