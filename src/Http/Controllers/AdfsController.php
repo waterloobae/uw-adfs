@@ -112,10 +112,16 @@ class AdfsController extends Controller
         // Get SAML session data before clearing
         $samlSession = Session::get('saml_session');
         $nameId = $samlSession['nameId'] ?? null;
+        $nameIdFormat = $samlSession['nameIdFormat'] ?? null;
         $sessionIndex = $samlSession['sessionIndex'] ?? null;
         
         Log::info("Logout initiated for user: {$email}");
-        Log::debug("SAML logout data - NameID: {$nameId}, SessionIndex: {$sessionIndex}");
+        Log::debug("SAML logout data - NameID: {$nameId}, NameIDFormat: {$nameIdFormat}, SessionIndex: {$sessionIndex}");
+        
+        // Log SAML configuration for debugging
+        $samlConfig = $this->adfsService->buildSamlConfig();
+        Log::debug("SLS endpoint: " . json_encode($samlConfig['sp']['singleLogoutService'] ?? 'not set'));
+        Log::debug("IdP SLS endpoint: " . json_encode($samlConfig['idp']['singleLogoutService'] ?? 'not set'));
         
         // Clear SAML session data
         Session::forget('saml_session');
@@ -140,6 +146,8 @@ class AdfsController extends Controller
                 Log::warning("SAML LogoutRequest error: " . $e->getMessage());
                 Log::debug("Exception trace: " . $e->getTraceAsString());
             }
+        } else {
+            Log::warning("Cannot send LogoutRequest - missing nameId or sessionIndex");
         }
         
         Log::info("User logged out: {$email}");
