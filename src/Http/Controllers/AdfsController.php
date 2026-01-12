@@ -68,6 +68,7 @@ class AdfsController extends Controller
                 // Store SAML session data
                 Session::put('saml_session', [
                     'nameId' => $samlData['nameId'],
+                    'nameIdFormat' => $samlData['nameIdFormat'],
                     'sessionIndex' => $samlData['sessionIndex'],
                     'attributes' => $samlData['attributes'],
                     'access_control_result' => $accessResult,
@@ -139,7 +140,7 @@ class AdfsController extends Controller
         if ($nameId && $sessionIndex) {
             try {
                 Log::info("Sending SAML LogoutRequest to ADFS");
-                $this->adfsService->logout(null, $nameId, $sessionIndex);
+                $this->adfsService->logout(null, $nameId, $sessionIndex, $nameIdFormat);
                 Log::info("SAML LogoutRequest completed");
             } catch (\Exception $e) {
                 // Log the error for debugging but don't fail the logout

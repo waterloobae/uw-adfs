@@ -286,10 +286,10 @@ class AdfsService
     /**
      * Initiate SAML logout
      */
-    public function logout(?string $returnTo = null, ?string $nameId = null, ?string $sessionIndex = null): void
+    public function logout(?string $returnTo = null, ?string $nameId = null, ?string $sessionIndex = null, ?string $nameIdFormat = null): void
     {
-        Log::debug("Initiating SAML logout - NameID: {$nameId}, SessionIndex: {$sessionIndex}, ReturnTo: {$returnTo}");
-        $this->samlAuth->logout($returnTo, [], $nameId, $sessionIndex);
+        Log::debug("Initiating SAML logout - NameID: {$nameId}, NameIDFormat: {$nameIdFormat}, SessionIndex: {$sessionIndex}, ReturnTo: {$returnTo}");
+        $this->samlAuth->logout($returnTo, [], $nameId, $sessionIndex, $nameIdFormat);
     }
 
     /**
