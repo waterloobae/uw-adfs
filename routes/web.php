@@ -27,17 +27,6 @@ Route::group([
     Route::get('/sls', [AdfsController::class, 'sls'])->name('saml.sls');
     Route::post('/sls', [AdfsController::class, 'sls']);
     
-    // Catch any SLS attempts (for debugging)
-    Route::any('/sls-debug', function () {
-        \Illuminate\Support\Facades\Log::info("SLS Debug route hit", [
-            'method' => \Illuminate\Support\Facades\Request::method(),
-            'all' => \Illuminate\Support\Facades\Request::all(),
-            'query' => \Illuminate\Support\Facades\Request::query->all(),
-            'headers' => \Illuminate\Support\Facades\Request::headers->all(),
-        ]);
-        return response('SLS Debug logged', 200);
-    });
-    
     // SAML Logout
     Route::get('/logout', [AdfsController::class, 'logout'])->name('saml.logout');
     Route::post('/logout', [AdfsController::class, 'logout']);
