@@ -106,13 +106,10 @@ class AdfsController extends Controller
      */
     public function logout(Request $request): RedirectResponse
     {
-
-        // Get SAML session data before clearing
-        $samlSession = Session::get('saml_session');
-        $nameId = $samlSession['nameId'] ?? null;
-        $sessionIndex = $samlSession['sessionIndex'] ?? null;
+        $user = Auth::user();
+        $email = $user?->email ?? 'unknown';
         
-        // Clear SAML session data from Laravel
+        // Clear SAML session data
         Session::forget('saml_session');
         
         // Log out from Laravel
@@ -123,19 +120,11 @@ class AdfsController extends Controller
         
         // Regenerate session token to prevent session fixation
         Session::regenerateToken();
-            
-        // Attempt to send SAML LogoutRequest to IdP
-        // This will cause ADFS to terminate the session on its end
-        try {
-            $this->adfsService->logout(null, $nameId, $sessionIndex);
-        } catch (\Exception $e) {
-            // Log but don't fail - user is already logged out locally
-            // Log::warning("SAML logout to IdP failed: " . $e->getMessage());
-            return redirect(config('app.url'))->with('success', 'Logged out successfully');
-        }
         
-        // Redirect to app root
-        return redirect(config('app.url'))->with('success', 'Logged out successfully');
+        Log::info("User logged out: {$email}");
+        
+        // Redirect immediately - skip SAML LogoutRequest to avoid ADFS 500 errors
+        return redirect('/')->with('success', 'Logged out successfully');
     }
 
     /**
