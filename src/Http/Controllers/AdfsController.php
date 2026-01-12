@@ -107,23 +107,11 @@ class AdfsController extends Controller
     public function logout(Request $request): RedirectResponse
     {
         $samlSession = Session::get('saml_session');
-        $nameId = $samlSession['nameId'] ?? null;
-        $sessionIndex = $samlSession['sessionIndex'] ?? null;
         
         // Log out from Laravel immediately
         Auth::logout();
         Session::flush();
-        
-        $returnTo = $request->get('returnTo', config('app.url'));
-        
-        try {
-            // Initiate SAML logout (may or may not complete)
-            $this->adfsService->logout($returnTo, $nameId, $sessionIndex);
-        } catch (\Exception $e) {
-            Log::warning('SAML logout initiation failed: ' . $e->getMessage());
-            // Continue with local logout anyway
-        }
-        
+            
         // Don't wait for ADFS response, redirect immediately
         return redirect('/')->with('success', 'Logged out successfully');
     }
