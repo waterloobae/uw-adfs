@@ -136,26 +136,20 @@ class AdfsController extends Controller
         // Regenerate session token to prevent session fixation
         Session::regenerateToken();
         
-        // Attempt to send SAML LogoutRequest
-        if ($nameId && $sessionIndex) {
-            try {
-                Log::info("Sending SAML LogoutRequest to ADFS");
-                // Use logoutall parameter to force ADFS to clear all sessions
-                $returnTo = config('app.url') . '?logoutall=1';
-                $this->adfsService->logout($returnTo, $nameId, $sessionIndex, $nameIdFormat);
-                Log::info("SAML LogoutRequest completed");
-            } catch (\Exception $e) {
-                // Log the error for debugging but don't fail the logout
-                Log::warning("SAML LogoutRequest error: " . $e->getMessage());
-                Log::debug("Exception trace: " . $e->getTraceAsString());
-            }
-        } else {
-            Log::warning("Cannot send LogoutRequest - missing nameId or sessionIndex");
-        }
+        // Get ADFS logout URL from configuration
+        $environment = config('uw-adfs.environment', 'development');
+        $adfsLogoutBaseUrl = config("uw-adfs.idp.{$environment}.singleLogoutService.url");
+        
+        // Construct ADFS logout URL with wa=wsignout1.0 parameter
+        // This tells ADFS to perform a sign-out and clear all sessions
+        $adfsLogoutUrl = rtrim($adfsLogoutBaseUrl, '/');
+        $adfsLogoutUrl .= '?wa=wsignout1.0&wreply=' . urlencode(config('app.url'));
         
         Log::info("User logged out: {$email}");
+        Log::info("Redirecting to ADFS logout: {$adfsLogoutUrl}");
         
-        return redirect('/')->with('success', 'Logged out successfully');
+        // Redirect to ADFS logout endpoint to clear ADFS session
+        return redirect($adfsLogoutUrl);
     }
 
     /**
