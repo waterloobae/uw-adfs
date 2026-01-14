@@ -294,6 +294,7 @@ class AdfsService
         $samlConfig = $this->buildSamlConfig();
         Log::debug("SAML Config - SP SLS: " . json_encode($samlConfig['sp']['singleLogoutService'] ?? 'not set'));
         Log::debug("SAML Config - IdP SLS: " . json_encode($samlConfig['idp']['singleLogoutService'] ?? 'not set'));
+        Log::debug("SAML Config - IdP EntityID: " . ($samlConfig['idp']['entityId'] ?? 'not set'));
         
         // Build logout request URL using OneLogin
         $this->samlAuth->logout($returnTo, [], $nameId, $sessionIndex, $nameIdFormat);
