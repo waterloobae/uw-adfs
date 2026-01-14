@@ -125,8 +125,20 @@ class AdfsController extends Controller
         // Call ADFS logout - OneLogin will set redirect headers
         $this->adfsService->logout($returnTo, $nameId, $sessionIndex, $nameIdFormat);
     
-        // The OneLogin library sets redirect headers, exit to prevent further processing
-        exit();        
+        // Clear output buffers and send headers
+        if (function_exists('fastcgi_finish_request')) {
+            // FastCGI finish the request cleanly
+            ob_end_clean();
+            fastcgi_finish_request();
+        } else {
+            // For non-FastCGI, use ob_end_clean() and die()
+            while (ob_get_level()) {
+                ob_end_clean();
+            }
+        }
+        
+        // Exit to prevent further processing
+        die();        
    }
 
     /**

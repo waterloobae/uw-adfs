@@ -300,7 +300,10 @@ class AdfsService
         
         Log::debug("SAML LogoutRequest generated - redirect headers set");
         
-        // Return empty string (headers already set by OneLogin)
+        // Log all response headers set by OneLogin
+        $headers = headers_list();
+        Log::debug("Response headers after logout: " . json_encode($headers));
+        
         return '';
     }
 
