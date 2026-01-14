@@ -326,7 +326,33 @@ class AdfsService
             $logoutRequestXml = $this->samlAuth->getLastRequestXML();
             
             if ($logoutRequestXml) {
-                Log::debug("LogoutRequest XML found");
+                Log::debug("LogoutRequest XML found, length: " . strlen($logoutRequestXml));
+                Log::debug("LogoutRequest XML (first 500 chars): " . substr($logoutRequestXml, 0, 500));
+                
+                // Parse and validate the XML
+                $dom = new \DOMDocument();
+                try {
+                    if (!$dom->loadXML($logoutRequestXml)) {
+                        Log::error("Failed to parse LogoutRequest XML");
+                        return $idpSls;
+                    }
+                    
+                    // Ensure Destination attribute is set
+                    $logoutRequest = $dom->getElementsByTagName('LogoutRequest')->item(0);
+                    if ($logoutRequest) {
+                        if (!$logoutRequest->hasAttribute('Destination')) {
+                            Log::debug("Adding Destination attribute to LogoutRequest: " . $idpSls);
+                            $logoutRequest->setAttribute('Destination', $idpSls);
+                            $logoutRequestXml = $dom->saveXML();
+                            Log::debug("Modified LogoutRequest XML (first 500 chars): " . substr($logoutRequestXml, 0, 500));
+                        } else {
+                            Log::debug("LogoutRequest already has Destination attribute");
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::error("Error parsing LogoutRequest XML: " . $e->getMessage());
+                    // Continue with original XML
+                }
                 
                 // Deflate and base64 encode the request
                 $deflated = gzdeflate($logoutRequestXml);
