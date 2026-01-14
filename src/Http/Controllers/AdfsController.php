@@ -107,53 +107,24 @@ class AdfsController extends Controller
      */
     public function logout(Request $request): RedirectResponse
     {
-        $user = Auth::user();
-        $email = $user?->email ?? 'unknown';
-        
-        // Get SAML session data before clearing
         $samlSession = Session::get('saml_session');
         $nameId = $samlSession['nameId'] ?? null;
-        $nameIdFormat = $samlSession['nameIdFormat'] ?? null;
         $sessionIndex = $samlSession['sessionIndex'] ?? null;
-        
-        //Log::info("Logout initiated for user: {$email}");
-        //Log::debug("SAML logout data - NameID: {$nameId}, NameIDFormat: {$nameIdFormat}, SessionIndex: {$sessionIndex}");
-        
-        // Log SAML configuration for debugging
-        // $samlConfig = $this->adfsService->buildSamlConfig();
-        //Log::debug("SLS endpoint: " . json_encode($samlConfig['sp']['singleLogoutService'] ?? 'not set'));
-        //Log::debug("IdP SLS endpoint: " . json_encode($samlConfig['idp']['singleLogoutService'] ?? 'not set'));
-        
-        // Clear SAML session data
-        Session::forget('saml_session');
-        
+    
         // Log out from Laravel
         Auth::logout();
         
-        // Invalidate the entire session
-        Session::invalidate();
-        
-        // Regenerate session token to prevent session fixation
+        Session::forget('saml_session');
+        Session::invalidate();        
         Session::regenerateToken();
-        
-        // Get ADFS logout URL from configuration
-        // $environment = config('uw-adfs.environment', 'development');
-        // $adfsLogoutBaseUrl = config("uw-adfs.idp.{$environment}.singleLogoutService.url");
-        
-        // Construct ADFS logout URL with wa=wsignout1.0 parameter
-        // This tells ADFS to perform a sign-out and clear all sessions
-        //$adfsLogoutUrl = rtrim($adfsLogoutBaseUrl, '/');
-        // $adfsLogoutUrl .= '?wa=wsignout1.0&wreply=' . urlencode(config('app.url'));
-        // $adfsLogoutUrl .= '?wa=wsignout1.0&wreply=' . urlencode(config('app.url') . '/saml/sls');
-        
-        // Call ADFS logout and redirect to SLS
-        $this->adfsService->sls();
-        
-        return redirect()->route('saml.sls')
-            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-            ->header('Pragma', 'no-cache')
-            ->header('Expires', '0');
-    }
+        Session::flush();
+
+        $returnTo = $request->get('returnTo', config('app.url'));
+        $this->adfsService->logout($returnTo, $nameId, $sessionIndex);
+    
+        // The OneLogin library will handle the redirect via headers
+        exit();        
+   }
 
     /**
      * Handle SAML Single Logout Service
