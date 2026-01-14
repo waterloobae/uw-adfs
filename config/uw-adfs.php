@@ -42,7 +42,7 @@ return [
             'metadata_file' => storage_path('app/saml/prod.xml'), // Fallback local file
         ],
         'development' => [
-        'entityId' => 'https://adfstest.uwaterloo.ca/adfs/services/trust',
+        'entityId' => 'http://adfstest.uwaterloo.ca/adfs/services/trust',
             'singleSignOnService' => [
                 'url' => 'https://adfstest.uwaterloo.ca/adfs/ls/',
                 'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
