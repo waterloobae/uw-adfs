@@ -59,7 +59,7 @@ return [
     'security' => [
         'nameIdEncrypted' => false,
         'authnRequestsSigned' => false,
-        'logoutRequestSigned' => false,
+        'logoutRequestSigned' => true,
         'logoutResponseSigned' => false,
         'signMetadata' => false,
         'wantMessagesSigned' => false,

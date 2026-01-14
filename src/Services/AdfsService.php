@@ -349,10 +349,24 @@ class AdfsService
                             Log::debug("LogoutRequest already has Destination attribute");
                         }
                     }
+                    
+                    // Add NameIDFormat to NameID element if missing
+                    $nameIdElements = $dom->getElementsByTagNameNS('urn:oasis:names:tc:SAML:2.0:assertion', 'NameID');
+                    if ($nameIdElements->length > 0) {
+                        $nameIdElement = $nameIdElements->item(0);
+                        if ($nameIdFormat && !$nameIdElement->hasAttribute('Format')) {
+                            Log::debug("Adding Format attribute to NameID: " . $nameIdFormat);
+                            $nameIdElement->setAttribute('Format', $nameIdFormat);
+                            $logoutRequestXml = $dom->saveXML();
+                        }
+                    }
+                    
                 } catch (\Exception $e) {
                     Log::error("Error parsing LogoutRequest XML: " . $e->getMessage());
                     // Continue with original XML
                 }
+                
+                Log::debug("Final LogoutRequest XML (full): " . $logoutRequestXml);
                 
                 // Deflate and base64 encode the request
                 $deflated = gzdeflate($logoutRequestXml);
