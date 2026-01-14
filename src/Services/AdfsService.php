@@ -295,32 +295,58 @@ class AdfsService
         Log::debug("SAML Config - SP SLS: " . json_encode($samlConfig['sp']['singleLogoutService'] ?? 'not set'));
         Log::debug("SAML Config - IdP SLS: " . json_encode($samlConfig['idp']['singleLogoutService'] ?? 'not set'));
         
-        // Call OneLogin logout to prepare the LogoutRequest
+        // Build logout request URL using OneLogin
         $this->samlAuth->logout($returnTo, [], $nameId, $sessionIndex, $nameIdFormat);
         
         Log::debug("SAML LogoutRequest generated");
         
-        // Try to get the logout URL from OneLogin
-        // Check if there's a Location header set
+        // Get the logout URL from OneLogin's internal state
+        // The logout() method sets headers, but we need to extract the URL
+        $logoutUrl = '';
+        
+        // Check if we can get it from response headers
         $headers = headers_list();
         Log::debug("Response headers after logout: " . json_encode($headers));
         
-        // Extract Location header if it exists
         foreach ($headers as $header) {
             if (stripos($header, 'Location:') === 0) {
-                $logoutUrl = substr($header, 10); // Remove "Location: "
-                Log::info("Logout redirect URL: " . $logoutUrl);
+                $logoutUrl = trim(substr($header, 9)); // Remove "Location: "
+                Log::info("Logout redirect URL from headers: " . $logoutUrl);
                 return $logoutUrl;
             }
         }
         
-        // If no Location header, try to get the URL from response
-        // This is a fallback - construct the URL manually from IdP SLS endpoint
+        // If no Location header, try to manually construct the logout request
+        // Get the IdP's SingleLogoutService URL
         $idpSls = $samlConfig['idp']['singleLogoutService']['url'] ?? null;
-        if ($idpSls) {
-            Log::warning("No Location header set by OneLogin, using IdP SLS endpoint as fallback");
-            Log::info("Logout redirect URL (fallback): " . $idpSls);
-            return $idpSls;
+        $idpBinding = $samlConfig['idp']['singleLogoutService']['binding'] ?? null;
+        
+        if ($idpSls && stripos($idpBinding, 'HTTP-Redirect') !== false) {
+            Log::warning("No Location header found, attempting to construct logout URL manually");
+            
+            // Use OneLogin's internal methods to get the SAMLRequest if available
+            // Try to access the LastRequestXML which contains the LogoutRequest
+            $logoutRequestXml = $this->samlAuth->getLastRequestXML();
+            
+            if ($logoutRequestXml) {
+                Log::debug("LogoutRequest XML found");
+                
+                // Deflate and base64 encode the request
+                $deflated = gzdeflate($logoutRequestXml);
+                if ($deflated === false) {
+                    Log::error("Failed to deflate LogoutRequest");
+                    return $idpSls;
+                }
+                
+                $encoded = base64_encode($deflated);
+                $logoutUrl = $idpSls . (strpos($idpSls, '?') === false ? '?' : '&') . 'SAMLRequest=' . urlencode($encoded);
+                
+                Log::info("Logout redirect URL (manual construction): " . $logoutUrl);
+                return $logoutUrl;
+            } else {
+                Log::warning("Could not get LogoutRequest XML, using bare IdP SLS endpoint");
+                return $idpSls;
+            }
         }
         
         Log::error("Could not determine logout redirect URL");
