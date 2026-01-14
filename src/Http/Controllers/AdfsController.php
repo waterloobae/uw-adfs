@@ -180,7 +180,11 @@ class AdfsController extends Controller
             }
             
             // Log::info("User logged out from Laravel");
-            return redirect('/')->with('adfs.success', 'Successfully logged out');
+        return redirect('/')
+            ->with('adfs.success', 'Successfully logged out')
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0');
             
         } catch (\Exception $e) {
             // Log::error("SLS processing error: " . $e->getMessage());
