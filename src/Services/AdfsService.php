@@ -294,11 +294,14 @@ class AdfsService
         $samlConfig = $this->buildSamlConfig();
         $idpSls = $samlConfig['idp']['singleLogoutService']['url'] ?? null;
         $spEntityId = $samlConfig['sp']['entityId'];
+        $privateKey = $samlConfig['sp']['privateKey'] ?? null;
+        $certificate = $samlConfig['sp']['x509cert'] ?? null;
         
         Log::debug("SAML Config - SP SLS: " . json_encode($samlConfig['sp']['singleLogoutService'] ?? 'not set'));
         Log::debug("SAML Config - IdP SLS: " . json_encode($samlConfig['idp']['singleLogoutService'] ?? 'not set'));
         Log::debug("SAML Config - IdP EntityID: " . ($samlConfig['idp']['entityId'] ?? 'not set'));
-        Log::debug("Security config logoutRequestSigned: " . ($samlConfig['security']['logoutRequestSigned'] ? 'true' : 'false'));
+        Log::debug("SP has private key: " . ($privateKey ? 'yes' : 'no'));
+        Log::debug("SP has certificate: " . ($certificate ? 'yes' : 'no'));
         
         // Check if we can get logout URL from OneLogin's headers first
         $headers = headers_list();
@@ -310,20 +313,18 @@ class AdfsService
             }
         }
         
-        // Manually construct the LogoutRequest XML
+        // Manually construct and sign the LogoutRequest XML
         if ($idpSls && $nameId && $sessionIndex) {
             Log::debug("Manually constructing LogoutRequest XML");
             
-            // Note: If logoutRequestSigned is enabled in config, ADFS may require a Signature element
-            // For now, we send unsigned requests as OneLogin's signing in this context is unreliable
-            
-            // Create LogoutRequest XML
+            // Create LogoutRequest XML (without signature initially)
             $issueInstant = date('Y-m-d\TH:i:s\Z');
-            $requestId = 'ONELOGIN_' . hash('sha1', uniqid(mt_rand(), true), false);
+            $requestId = '_' . bin2hex(random_bytes(16));
             
             $logoutRequestXml = sprintf('<?xml version="1.0" encoding="UTF-8"?>
 <samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+    xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
     ID="%s"
     Version="2.0"
     IssueInstant="%s"
@@ -341,7 +342,21 @@ class AdfsService
                 htmlspecialchars($sessionIndex)
             );
             
-            Log::debug("Manually constructed LogoutRequest XML: " . $logoutRequestXml);
+            Log::debug("Unsigned LogoutRequest XML: " . $logoutRequestXml);
+            
+            // Sign the request if private key is available
+            if ($privateKey) {
+                Log::debug("Attempting to sign LogoutRequest with SP private key");
+                try {
+                    $logoutRequestXml = $this->signXml($logoutRequestXml, $privateKey, $requestId);
+                    Log::debug("LogoutRequest signed successfully");
+                } catch (\Exception $e) {
+                    Log::error("Failed to sign LogoutRequest: " . $e->getMessage());
+                    Log::warning("Sending LogoutRequest without signature - ADFS may reject it");
+                }
+            } else {
+                Log::warning("No SP private key configured - sending unsigned LogoutRequest (ADFS will likely reject it)");
+            }
             
             // Deflate and base64 encode
             $deflated = gzdeflate($logoutRequestXml);
@@ -364,12 +379,146 @@ class AdfsService
                 Log::debug("Added RelayState to logout URL: " . $spSls);
             }
             
-            Log::info("Logout redirect URL (manually constructed): " . $logoutUrl);
+            Log::info("Logout redirect URL (manually constructed" . ($privateKey ? " and signed" : "") . "): " . $logoutUrl);
             return $logoutUrl;
         }
         
         Log::error("Missing required logout parameters - NameID: " . ($nameId ?? 'null') . ", SessionIndex: " . ($sessionIndex ?? 'null'));
         return $idpSls ?? '';
+    }
+    
+    /**
+     * Sign XML document with private key for SAML
+     * 
+     * This creates a digital signature to prove the LogoutRequest came from the authenticated SP.
+     * ADFS requires signed logout requests when using HTTP-Redirect binding.
+     */
+    private function signXml(string $xml, string $privateKey, string $referenceId): string
+    {
+        try {
+            Log::debug("Starting XML signing process");
+            
+            // Load the XML document
+            $dom = new \DOMDocument();
+            $dom->preserveWhiteSpace = true;
+            if (!$dom->loadXML($xml)) {
+                throw new \Exception("Failed to load XML for signing");
+            }
+            
+            // Parse the private key
+            $keyResource = openssl_pkey_get_private($privateKey);
+            if ($keyResource === false) {
+                throw new \Exception("Failed to parse private key: " . openssl_error_string());
+            }
+            
+            Log::debug("Private key parsed successfully");
+            
+            $dsNamespace = 'http://www.w3.org/2000/09/xmldsig#';
+            
+            // Create SignedInfo element first to calculate signature
+            $signedInfo = $dom->createElementNS($dsNamespace, 'ds:SignedInfo');
+            
+            // Add CanonicalizationMethod
+            $canonicalization = $dom->createElementNS($dsNamespace, 'ds:CanonicalizationMethod');
+            $canonicalization->setAttribute('Algorithm', 'http://www.w3.org/2001/10/xml-exc-c14n#');
+            $signedInfo->appendChild($canonicalization);
+            
+            // Add SignatureMethod
+            $signatureMethod = $dom->createElementNS($dsNamespace, 'ds:SignatureMethod');
+            $signatureMethod->setAttribute('Algorithm', 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256');
+            $signedInfo->appendChild($signatureMethod);
+            
+            // Add Reference
+            $reference = $dom->createElementNS($dsNamespace, 'ds:Reference');
+            $reference->setAttribute('URI', '#' . $referenceId);
+            
+            // Add Transforms
+            $transforms = $dom->createElementNS($dsNamespace, 'ds:Transforms');
+            
+            $transform1 = $dom->createElementNS($dsNamespace, 'ds:Transform');
+            $transform1->setAttribute('Algorithm', 'http://www.w3.org/2000/09/xmldsig#enveloped-signature');
+            $transforms->appendChild($transform1);
+            
+            $transform2 = $dom->createElementNS($dsNamespace, 'ds:Transform');
+            $transform2->setAttribute('Algorithm', 'http://www.w3.org/2001/10/xml-exc-c14n#');
+            $transforms->appendChild($transform2);
+            
+            $reference->appendChild($transforms);
+            
+            // Add DigestMethod
+            $digestMethod = $dom->createElementNS($dsNamespace, 'ds:DigestMethod');
+            $digestMethod->setAttribute('Algorithm', 'http://www.w3.org/2001/04/xmlenc#sha256');
+            $reference->appendChild($digestMethod);
+            
+            // Add DigestValue (placeholder, will be replaced with actual)
+            $digestValue = $dom->createElementNS($dsNamespace, 'ds:DigestValue');
+            $digestValue->appendChild($dom->createTextNode(''));
+            $reference->appendChild($digestValue);
+            
+            $signedInfo->appendChild($reference);
+            
+            // Calculate digest of the original document element (before adding signature)
+            $rootElement = $dom->documentElement;
+            $rootXml = $dom->saveXML($rootElement);
+            
+            // Canonicalize and hash
+            $digestData = $this->canonicalizeXml($rootXml);
+            $digest = base64_encode(hash('sha256', $digestData, true));
+            
+            Log::debug("Document digest calculated: " . substr($digest, 0, 20) . "...");
+            
+            // Update DigestValue with actual value
+            $digestValue->firstChild->nodeValue = $digest;
+            
+            // Serialize SignedInfo for signature calculation
+            $signedInfoXml = $dom->saveXML($signedInfo);
+            $signedInfoCanonicalized = $this->canonicalizeXml($signedInfoXml);
+            
+            Log::debug("SignedInfo canonicalized, length: " . strlen($signedInfoCanonicalized));
+            
+            // Sign the SignedInfo
+            $signatureValue = '';
+            $result = openssl_sign($signedInfoCanonicalized, $signatureValue, $keyResource, 'sha256WithRSAEncryption');
+            
+            if ($result === false) {
+                throw new \Exception("Failed to sign XML: " . openssl_error_string());
+            }
+            
+            Log::debug("XML signed successfully, signature length: " . strlen($signatureValue));
+            
+            // Create Signature element
+            $signatureElement = $dom->createElementNS($dsNamespace, 'ds:Signature');
+            
+            // Add the SignedInfo we just created
+            $signatureElement->appendChild($signedInfo);
+            
+            // Add SignatureValue
+            $signatureValueElement = $dom->createElementNS($dsNamespace, 'ds:SignatureValue');
+            $signatureValueElement->appendChild($dom->createTextNode(base64_encode($signatureValue)));
+            $signatureElement->appendChild($signatureValueElement);
+            
+            // Insert Signature as first child of root (after XML declaration)
+            $rootElement->insertBefore($signatureElement, $rootElement->firstChild);
+            
+            $signedXml = $dom->saveXML();
+            Log::debug("Signed XML length: " . strlen($signedXml) . ", first 400 chars:\n" . substr($signedXml, 0, 400));
+            
+            return $signedXml;
+        } catch (\Exception $e) {
+            Log::error("XML signing error: " . $e->getMessage());
+            throw $e;
+        }
+    }
+    
+    /**
+     * Canonicalize XML for signature calculation
+     */
+    private function canonicalizeXml(string $xml): string
+    {
+        // Remove extra whitespace and newlines for consistent canonicalization
+        $xml = preg_replace('/>\s+</', '><', $xml);
+        $xml = trim($xml);
+        return $xml;
     }
 
     /**
