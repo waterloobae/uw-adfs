@@ -90,7 +90,7 @@ class AdfsController extends Controller
             // Clear session
             Session::flush();
             Log::error('ADFS user creation failed for attributes: ' . json_encode($samlData['attributes']) ?? 'N/A');
-            return redirect('saml/sls')->with('adfs.error', 'Unable to create user account');
+            return redirect()->route('saml.sls')->with('adfs.error', 'Unable to create user account');
             
         } catch (\Exception $e) {
 
@@ -98,7 +98,7 @@ class AdfsController extends Controller
             // Clear session
             Session::flush();
             Log::error('ADFS authentication failed: ' . $e->getMessage());
-            return redirect('saml/sls')->with('adfs.error', 'ADFS authentication failed: ' . $e->getMessage());
+            return redirect()->route('saml.sls')->with('adfs.error', 'ADFS authentication failed: ' . $e->getMessage());
         }
     }
 
