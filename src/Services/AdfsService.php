@@ -497,11 +497,20 @@ class AdfsService
             $signatureValueElement->appendChild($dom->createTextNode(base64_encode($signatureValue)));
             $signatureElement->appendChild($signatureValueElement);
             
-            // Insert Signature as first child of root (after XML declaration)
-            $rootElement->insertBefore($signatureElement, $rootElement->firstChild);
+            // Insert Signature after Issuer element (ADFS expects specific element order)
+            // Order should be: Issuer, Signature, NameID, SessionIndex
+            $issuerElement = $rootElement->getElementsByTagNameNS('urn:oasis:names:tc:SAML:2.0:assertion', 'Issuer')->item(0);
+            if ($issuerElement && $issuerElement->nextSibling) {
+                $rootElement->insertBefore($signatureElement, $issuerElement->nextSibling);
+                Log::debug("Inserted Signature after Issuer element");
+            } else {
+                // Fallback: insert after first child
+                $rootElement->insertBefore($signatureElement, $rootElement->firstChild->nextSibling ?? $rootElement->firstChild);
+                Log::debug("Inserted Signature as fallback position");
+            }
             
             $signedXml = $dom->saveXML();
-            Log::debug("Signed XML length: " . strlen($signedXml) . ", first 400 chars:\n" . substr($signedXml, 0, 400));
+            Log::debug("Signed XML length: " . strlen($signedXml) . ", first 600 chars:\n" . substr($signedXml, 0, 600));
             
             return $signedXml;
         } catch (\Exception $e) {
