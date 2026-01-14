@@ -301,7 +301,6 @@ class AdfsService
         Log::debug("SAML LogoutRequest generated");
         
         // Get the logout URL from OneLogin's internal state
-        // The logout() method sets headers, but we need to extract the URL
         $logoutUrl = '';
         
         // Check if we can get it from response headers
@@ -317,15 +316,13 @@ class AdfsService
         }
         
         // If no Location header, try to manually construct the logout request
-        // Get the IdP's SingleLogoutService URL
         $idpSls = $samlConfig['idp']['singleLogoutService']['url'] ?? null;
         $idpBinding = $samlConfig['idp']['singleLogoutService']['binding'] ?? null;
         
         if ($idpSls && stripos($idpBinding, 'HTTP-Redirect') !== false) {
             Log::warning("No Location header found, attempting to construct logout URL manually");
             
-            // Use OneLogin's internal methods to get the SAMLRequest if available
-            // Try to access the LastRequestXML which contains the LogoutRequest
+            // Get the LogoutRequest XML
             $logoutRequestXml = $this->samlAuth->getLastRequestXML();
             
             if ($logoutRequestXml) {
@@ -339,7 +336,16 @@ class AdfsService
                 }
                 
                 $encoded = base64_encode($deflated);
-                $logoutUrl = $idpSls . (strpos($idpSls, '?') === false ? '?' : '&') . 'SAMLRequest=' . urlencode($encoded);
+                
+                // Build the logout URL with SAMLRequest parameter
+                $separator = strpos($idpSls, '?') === false ? '?' : '&';
+                $logoutUrl = $idpSls . $separator . 'SAMLRequest=' . urlencode($encoded);
+                
+                // Add RelayState if return URL is provided
+                if ($returnTo) {
+                    $logoutUrl .= '&RelayState=' . urlencode($returnTo);
+                    Log::debug("Added RelayState to logout URL: " . $returnTo);
+                }
                 
                 Log::info("Logout redirect URL (manual construction): " . $logoutUrl);
                 return $logoutUrl;
