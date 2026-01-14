@@ -381,10 +381,11 @@ class AdfsService
                 $separator = strpos($idpSls, '?') === false ? '?' : '&';
                 $logoutUrl = $idpSls . $separator . 'SAMLRequest=' . urlencode($encoded);
                 
-                // Add RelayState if return URL is provided
-                if ($returnTo) {
-                    $logoutUrl .= '&RelayState=' . urlencode($returnTo);
-                    Log::debug("Added RelayState to logout URL: " . $returnTo);
+                // Add RelayState pointing to our SLS endpoint where ADFS sends LogoutResponse
+                $spSls = $samlConfig['sp']['singleLogoutService']['url'] ?? null;
+                if ($spSls) {
+                    $logoutUrl .= '&RelayState=' . urlencode($spSls);
+                    Log::debug("Added RelayState pointing to SP SLS endpoint: " . $spSls);
                 }
                 
                 Log::info("Logout redirect URL (manual construction): " . $logoutUrl);
