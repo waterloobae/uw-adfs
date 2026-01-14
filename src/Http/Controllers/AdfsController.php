@@ -143,13 +143,14 @@ class AdfsController extends Controller
         // Construct ADFS logout URL with wa=wsignout1.0 parameter
         // This tells ADFS to perform a sign-out and clear all sessions
         $adfsLogoutUrl = rtrim($adfsLogoutBaseUrl, '/');
-        $adfsLogoutUrl .= '?wa=wsignout1.0&wreply=' . urlencode(config('app.url'));
+        // $adfsLogoutUrl .= '?wa=wsignout1.0&wreply=' . urlencode(config('app.url'));
+        $adfsLogoutUrl .= '?wa=wsignout1.0&wreply=' . urlencode(config('app.url') . '/saml/sls');
         
         Log::info("User logged out: {$email}");
         Log::info("Redirecting to ADFS logout: {$adfsLogoutUrl}");
         
         // Redirect to ADFS logout endpoint to clear ADFS session
-        return redirect($adfsLogoutUrl);
+        return redirect($adfsLogoutUrl); 
     }
 
     /**
