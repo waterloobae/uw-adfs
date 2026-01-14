@@ -88,7 +88,7 @@ class ProxyController extends Controller
         try {
             // Handle logout - forward to upstream and clean up sessions
             // Implementation depends on specific requirements
-            return redirect('/')->with('success', 'Logged out successfully');
+            return redirect('/')->with('adfs.success', 'Logged out successfully');
             
         } catch (\Exception $e) {
             return response()->json([

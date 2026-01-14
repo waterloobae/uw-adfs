@@ -53,8 +53,8 @@ class AdfsController extends Controller
             
             if (!$accessResult['authorized']) {
                 return redirect(config('uw-adfs.access_control.access_denied_url', '/access-denied'))
-                    ->with('error', $accessResult['reason'])
-                    ->with('access_control_details', $accessResult);
+                    ->with('adfs.error', $accessResult['reason'])
+                    ->with('adfs.access_control_details', $accessResult);
             }
             
             // Create or update user from SAML attributes
@@ -82,7 +82,7 @@ class AdfsController extends Controller
                 Log::info('ADFS user logged in: ' . $email);
                 // Log::debug('Session data: ' . json_encode(Session::get('saml_session')));
 
-                return redirect($returnTo)->with('success', 'Successfully logged in via ADFS');
+                return redirect($returnTo)->with('adfs.success', 'Successfully logged in via ADFS');
             }
             
             // User creation failed - properly log out from ADFS
@@ -90,7 +90,7 @@ class AdfsController extends Controller
             // Clear session
             Session::flush();
             Log::error('ADFS user creation failed for attributes: ' . json_encode($samlData['attributes']) ?? 'N/A');
-            return redirect('saml/sls')->with('error', 'Unable to create user account');
+            return redirect('saml/sls')->with('adfs.error', 'Unable to create user account');
             
         } catch (\Exception $e) {
 
@@ -98,7 +98,7 @@ class AdfsController extends Controller
             // Clear session
             Session::flush();
             Log::error('ADFS authentication failed: ' . $e->getMessage());
-            return redirect('saml/sls')->with('error', 'ADFS authentication failed: ' . $e->getMessage());
+            return redirect('saml/sls')->with('adfs.error', 'ADFS authentication failed: ' . $e->getMessage());
         }
     }
 
@@ -176,12 +176,12 @@ class AdfsController extends Controller
             }
             
             // Log::info("User logged out from Laravel");
-            return redirect('/')->with('success', 'Successfully logged out');
+            return redirect('/')->with('adfs.success', 'Successfully logged out');
             
         } catch (\Exception $e) {
             // Log::error("SLS processing error: " . $e->getMessage());
             // Log::debug("SLS exception trace: " . $e->getTraceAsString());
-            return redirect('/')->with('error', 'Logout failed: ' . $e->getMessage());
+            return redirect('/')->with('adfs.error', 'Logout failed: ' . $e->getMessage());
         }
     }
 
@@ -199,7 +199,7 @@ class AdfsController extends Controller
     public function attributes(Request $request)
     {
         if (!Auth::check()) {
-            return redirect('saml.login')->with('error', 'Please log in first');
+            return redirect('saml.login')->with('adfs.error', 'Please log in first');
         }
         
         $samlSession = Session::get('saml_session');
