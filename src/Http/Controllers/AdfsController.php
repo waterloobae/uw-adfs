@@ -107,6 +107,34 @@ class AdfsController extends Controller
      */
     public function logout(Request $request): void
     {
+        // Check if local-only logout is requested (don't contact ADFS)
+        $localOnly = $request->get('local_only', false);
+        
+        if ($localOnly) {
+            Log::info("Performing local-only logout without contacting ADFS");
+            
+            // Clear all Laravel session data
+            Auth::logout();
+            Session::forget('saml_session');
+            Session::invalidate();        
+            Session::regenerateToken();
+            Session::flush();
+            
+            // Clear session cookie
+            \Cookie::queue(\Cookie::forget(config('session.cookie')));
+            
+            $returnTo = $request->get('returnTo', config('app.url'));
+            Log::info("Local logout completed, redirecting to: " . $returnTo);
+            
+            // Set cache control headers to prevent back button access
+            header('Cache-Control: no-store, no-cache, no-buffer, must-revalidate, max-age=0');
+            header('Pragma: no-cache');
+            header('Expires: 0');
+            header('Location: ' . $returnTo);
+            exit();
+        }
+        
+        // Standard SAML logout - contact ADFS
         $samlSession = Session::get('saml_session');
         $nameId = $samlSession['nameId'] ?? null;
         $nameIdFormat = $samlSession['nameIdFormat'] ?? null;
@@ -119,19 +147,29 @@ class AdfsController extends Controller
         Session::invalidate();        
         Session::regenerateToken();
         Session::flush();
-
+        
+        // Clear session cookie
+        \Cookie::queue(\Cookie::forget(config('session.cookie')));
+            
         $returnTo = $request->get('returnTo', config('app.url'));
+        Log::info("Local logout completed, redirecting to: " . $returnTo);
+            
+        // Set cache control headers to prevent back button access
+        header('Cache-Control: no-store, no-cache, no-buffer, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+        header('Location: ' . $returnTo);
+        exit();
+        // // Get logout redirect URL from ADFS service
+        // $logoutUrl = $this->adfsService->logout($returnTo, $nameId, $sessionIndex, $nameIdFormat);
         
-        // Get logout redirect URL from ADFS service
-        $logoutUrl = $this->adfsService->logout($returnTo, $nameId, $sessionIndex, $nameIdFormat);
-        
-        if ($logoutUrl) {
-            Log::info("Redirecting to logout URL: " . $logoutUrl);
-            header('Location: ' . $logoutUrl);
-        } else {
-            Log::warning("No logout URL available, redirecting to home");
-            header('Location: ' . config('app.url'));
-        }
+        // if ($logoutUrl) {
+        //     Log::info("Redirecting to logout URL: " . $logoutUrl);
+        //     header('Location: ' . $logoutUrl);
+        // } else {
+        //     Log::warning("No logout URL available, redirecting to home");
+        //     header('Location: ' . config('app.url'));
+        // }
         
         exit();        
    }
