@@ -292,43 +292,20 @@ class AdfsService
         
         // Get SAML configuration
         $samlConfig = $this->buildSamlConfig();
+        $idpSls = $samlConfig['idp']['singleLogoutService']['url'] ?? null;
+        $spEntityId = $samlConfig['sp']['entityId'];
         $privateKey = $samlConfig['sp']['privateKey'] ?? null;
         $certificate = $samlConfig['sp']['x509cert'] ?? null;
         
         Log::debug("SP has private key: " . ($privateKey ? 'yes' : 'no'));
         Log::debug("SP has certificate: " . ($certificate ? 'yes' : 'no'));
         Log::debug("logoutRequestSigned: " . ($samlConfig['security']['logoutRequestSigned'] ? 'yes' : 'no'));
-        
-        // Use OneLogin's logout method (which now has certs configured for signing)
-        try {
-            Log::debug("Using OneLogin SAML logout method");
-            $this->samlAuth->logout($returnTo);
-            
-            // Check if OneLogin set the Location header
-            $headers = headers_list();
-            foreach ($headers as $header) {
-                if (stripos($header, 'Location:') === 0) {
-                    $logoutUrl = trim(substr($header, 9));
-                    Log::info("Logout redirect URL from OneLogin: " . $logoutUrl);
-                    return $logoutUrl;
-                }
-            }
-            
-            Log::debug("No Location header found from OneLogin logout");
-        } catch (\Exception $e) {
-            Log::error("OneLogin logout exception: " . $e->getMessage());
-        }
-        
-        // Fallback: Manual construction if OneLogin doesn't provide URL
-        Log::debug("Falling back to manual logout URL construction");
-        $idpSls = $samlConfig['idp']['singleLogoutService']['url'] ?? null;
-        $spEntityId = $samlConfig['sp']['entityId'];
-        
         Log::debug("SAML Config - IdP SLS: " . json_encode($samlConfig['idp']['singleLogoutService'] ?? 'not set'));
-        Log::debug("SAML Config - IdP EntityID: " . ($samlConfig['idp']['entityId'] ?? 'not set'));
         
+        // Primary path: Manual construction with proper signing
+        // This ensures we send the correct SessionIndex, NameID, and NameIDFormat from the session
         if ($idpSls && $nameId && $sessionIndex) {
-            Log::debug("Manually constructing LogoutRequest XML as fallback");
+            Log::debug("Manually constructing LogoutRequest with session data");
             
             // Create LogoutRequest XML
             $issueInstant = date('Y-m-d\TH:i:s\Z');
@@ -355,11 +332,11 @@ class AdfsService
                 htmlspecialchars($sessionIndex)
             );
             
-            Log::debug("Unsigned LogoutRequest XML (fallback): " . substr($logoutRequestXml, 0, 300));
+            Log::debug("Unsigned LogoutRequest XML: " . substr($logoutRequestXml, 0, 300));
             
             // Sign the request if private key is available
             if ($privateKey) {
-                Log::debug("Signing fallback LogoutRequest with SP private key");
+                Log::debug("Signing LogoutRequest with SP private key");
                 try {
                     $logoutRequestXml = $this->signXml($logoutRequestXml, $privateKey, $requestId);
                     Log::debug("LogoutRequest signed successfully");
@@ -368,7 +345,7 @@ class AdfsService
                     Log::warning("Sending LogoutRequest without signature - ADFS may reject it");
                 }
             } else {
-                Log::warning("No SP private key configured for signing fallback LogoutRequest");
+                Log::warning("No SP private key configured - sending unsigned LogoutRequest");
             }
             
             // Deflate and base64 encode
@@ -392,12 +369,31 @@ class AdfsService
                 Log::debug("Added RelayState to logout URL: " . $spSls);
             }
             
-            Log::info("Logout redirect URL (fallback manual construction): " . $logoutUrl);
+            Log::info("Logout redirect URL (manual with signing): " . $logoutUrl);
             return $logoutUrl;
         }
         
+        // Fallback: Try OneLogin's logout method if we don't have session data
+        Log::debug("Session data incomplete, trying OneLogin logout method as fallback");
+        try {
+            Log::debug("Using OneLogin SAML logout method as fallback");
+            $this->samlAuth->logout($returnTo);
+            
+            // Check if OneLogin set the Location header
+            $headers = headers_list();
+            foreach ($headers as $header) {
+                if (stripos($header, 'Location:') === 0) {
+                    $logoutUrl = trim(substr($header, 9));
+                    Log::info("Logout redirect URL from OneLogin (fallback): " . $logoutUrl);
+                    return $logoutUrl;
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error("OneLogin logout exception: " . $e->getMessage());
+        }
+        
         Log::error("Missing required logout parameters - NameID: " . ($nameId ?? 'null') . ", SessionIndex: " . ($sessionIndex ?? 'null'));
-        return $samlConfig['idp']['singleLogoutService']['url'] ?? '';
+        return $idpSls ?? '';
     }
     
     /**
