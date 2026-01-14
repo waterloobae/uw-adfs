@@ -65,6 +65,5 @@ class UwAdfsServiceProvider extends ServiceProvider
         $router = $this->app['router'];
         $router->aliasMiddleware('adfs.auth', \WaterlooBae\UwAdfs\Http\Middleware\AdfsAuthenticated::class);
         $router->aliasMiddleware('adfs.group', \WaterlooBae\UwAdfs\Http\Middleware\AdfsGroup::class);
-        $router->aliasMiddleware('adfs.no-cache', \WaterlooBae\UwAdfs\Http\Middleware\NoCache::class);
     }
 }
