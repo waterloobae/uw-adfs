@@ -290,126 +290,82 @@ class AdfsService
     {
         Log::debug("Initiating SAML logout - NameID: {$nameId}, NameIDFormat: {$nameIdFormat}, SessionIndex: {$sessionIndex}, ReturnTo: {$returnTo}");
         
-        // Log SAML configuration for debugging
+        // Get SAML configuration
         $samlConfig = $this->buildSamlConfig();
+        $idpSls = $samlConfig['idp']['singleLogoutService']['url'] ?? null;
+        $spEntityId = $samlConfig['sp']['entityId'];
+        
         Log::debug("SAML Config - SP SLS: " . json_encode($samlConfig['sp']['singleLogoutService'] ?? 'not set'));
         Log::debug("SAML Config - IdP SLS: " . json_encode($samlConfig['idp']['singleLogoutService'] ?? 'not set'));
         Log::debug("SAML Config - IdP EntityID: " . ($samlConfig['idp']['entityId'] ?? 'not set'));
         
-        // Build logout request URL using OneLogin
-        $this->samlAuth->logout($returnTo, [], $nameId, $sessionIndex, $nameIdFormat);
-        
-        Log::debug("SAML LogoutRequest generated");
-        
-        // Get the logout URL from OneLogin's internal state
-        $logoutUrl = '';
-        
-        // Check if we can get it from response headers
+        // Check if we can get logout URL from OneLogin's headers first
         $headers = headers_list();
-        Log::debug("Response headers after logout: " . json_encode($headers));
-        
         foreach ($headers as $header) {
             if (stripos($header, 'Location:') === 0) {
-                $logoutUrl = trim(substr($header, 9)); // Remove "Location: "
+                $logoutUrl = trim(substr($header, 9));
                 Log::info("Logout redirect URL from headers: " . $logoutUrl);
                 return $logoutUrl;
             }
         }
         
-        // If no Location header, try to manually construct the logout request
-        $idpSls = $samlConfig['idp']['singleLogoutService']['url'] ?? null;
-        $idpBinding = $samlConfig['idp']['singleLogoutService']['binding'] ?? null;
-        
-        if ($idpSls && stripos($idpBinding, 'HTTP-Redirect') !== false) {
-            Log::warning("No Location header found, attempting to construct logout URL manually");
+        // Manually construct the LogoutRequest XML
+        if ($idpSls && $nameId && $sessionIndex) {
+            Log::debug("Manually constructing LogoutRequest XML");
             
-            // Get the LogoutRequest XML
-            $logoutRequestXml = $this->samlAuth->getLastRequestXML();
+            // Create LogoutRequest XML
+            $issueInstant = date('Y-m-d\TH:i:s\Z');
+            $requestId = 'ONELOGIN_' . hash('sha1', uniqid(mt_rand(), true), false);
             
-            if ($logoutRequestXml) {
-                Log::debug("LogoutRequest XML found, length: " . strlen($logoutRequestXml));
-                Log::debug("LogoutRequest XML (first 500 chars): " . substr($logoutRequestXml, 0, 500));
-                
-                // Parse and validate the XML
-                $dom = new \DOMDocument();
-                try {
-                    if (!$dom->loadXML($logoutRequestXml)) {
-                        Log::error("Failed to parse LogoutRequest XML");
-                        return $idpSls;
-                    }
-                    
-                    // Ensure Destination attribute is set
-                    $logoutRequest = $dom->getElementsByTagName('LogoutRequest')->item(0);
-                    if ($logoutRequest) {
-                        if (!$logoutRequest->hasAttribute('Destination')) {
-                            Log::debug("Adding Destination attribute to LogoutRequest: " . $idpSls);
-                            $logoutRequest->setAttribute('Destination', $idpSls);
-                            $logoutRequestXml = $dom->saveXML();
-                            Log::debug("Modified LogoutRequest XML (first 500 chars): " . substr($logoutRequestXml, 0, 500));
-                        } else {
-                            Log::debug("LogoutRequest already has Destination attribute");
-                        }
-                    }
-                    
-                    // Add NameIDFormat to NameID element if missing
-                    $nameIdElements = $dom->getElementsByTagNameNS('urn:oasis:names:tc:SAML:2.0:assertion', 'NameID');
-                    if ($nameIdElements->length > 0) {
-                        $nameIdElement = $nameIdElements->item(0);
-                        if ($nameIdFormat && !$nameIdElement->hasAttribute('Format')) {
-                            Log::debug("Adding Format attribute to NameID: " . $nameIdFormat);
-                            $nameIdElement->setAttribute('Format', $nameIdFormat);
-                            $logoutRequestXml = $dom->saveXML();
-                        }
-                    }
-                    
-                    // Add Format attribute to Issuer element if missing
-                    $issuerElements = $dom->getElementsByTagNameNS('urn:oasis:names:tc:SAML:2.0:assertion', 'Issuer');
-                    if ($issuerElements->length > 0) {
-                        $issuerElement = $issuerElements->item(0);
-                        if (!$issuerElement->hasAttribute('Format')) {
-                            Log::debug("Adding Format attribute to Issuer");
-                            $issuerElement->setAttribute('Format', 'urn:oasis:names:tc:SAML:2.0:nameid-format:entity');
-                            $logoutRequestXml = $dom->saveXML();
-                        }
-                    }
-                    
-                } catch (\Exception $e) {
-                    Log::error("Error parsing LogoutRequest XML: " . $e->getMessage());
-                    // Continue with original XML
-                }
-                
-                Log::debug("Final LogoutRequest XML (full): " . $logoutRequestXml);
-                
-                // Deflate and base64 encode the request
-                $deflated = gzdeflate($logoutRequestXml);
-                if ($deflated === false) {
-                    Log::error("Failed to deflate LogoutRequest");
-                    return $idpSls;
-                }
-                
-                $encoded = base64_encode($deflated);
-                
-                // Build the logout URL with SAMLRequest parameter
-                $separator = strpos($idpSls, '?') === false ? '?' : '&';
-                $logoutUrl = $idpSls . $separator . 'SAMLRequest=' . urlencode($encoded);
-                
-                // Add RelayState pointing to our SLS endpoint where ADFS sends LogoutResponse
-                $spSls = $samlConfig['sp']['singleLogoutService']['url'] ?? null;
-                if ($spSls) {
-                    $logoutUrl .= '&RelayState=' . urlencode($spSls);
-                    Log::debug("Added RelayState pointing to SP SLS endpoint: " . $spSls);
-                }
-                
-                Log::info("Logout redirect URL (manual construction): " . $logoutUrl);
-                return $logoutUrl;
-            } else {
-                Log::warning("Could not get LogoutRequest XML, using bare IdP SLS endpoint");
+            $logoutRequestXml = sprintf('<?xml version="1.0" encoding="UTF-8"?>
+<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+    xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+    ID="%s"
+    Version="2.0"
+    IssueInstant="%s"
+    Destination="%s">
+    <saml:Issuer Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">%s</saml:Issuer>
+    <saml:NameID Format="%s">%s</saml:NameID>
+    <samlp:SessionIndex>%s</samlp:SessionIndex>
+</samlp:LogoutRequest>',
+                htmlspecialchars($requestId),
+                htmlspecialchars($issueInstant),
+                htmlspecialchars($idpSls),
+                htmlspecialchars($spEntityId),
+                htmlspecialchars($nameIdFormat ?? 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified'),
+                htmlspecialchars($nameId),
+                htmlspecialchars($sessionIndex)
+            );
+            
+            Log::debug("Manually constructed LogoutRequest XML: " . $logoutRequestXml);
+            
+            // Deflate and base64 encode
+            $deflated = gzdeflate($logoutRequestXml);
+            if ($deflated === false) {
+                Log::error("Failed to deflate LogoutRequest");
                 return $idpSls;
             }
+            
+            $encoded = base64_encode($deflated);
+            Log::debug("Encoded SAMLRequest length: " . strlen($encoded));
+            
+            // Build logout URL
+            $separator = strpos($idpSls, '?') === false ? '?' : '&';
+            $logoutUrl = $idpSls . $separator . 'SAMLRequest=' . urlencode($encoded);
+            
+            // Add RelayState pointing to SP SLS endpoint
+            $spSls = $samlConfig['sp']['singleLogoutService']['url'] ?? null;
+            if ($spSls) {
+                $logoutUrl .= '&RelayState=' . urlencode($spSls);
+                Log::debug("Added RelayState to logout URL: " . $spSls);
+            }
+            
+            Log::info("Logout redirect URL (manually constructed): " . $logoutUrl);
+            return $logoutUrl;
         }
         
-        Log::error("Could not determine logout redirect URL");
-        return '';
+        Log::error("Missing required logout parameters - NameID: " . ($nameId ?? 'null') . ", SessionIndex: " . ($sessionIndex ?? 'null'));
+        return $idpSls ?? '';
     }
 
     /**
