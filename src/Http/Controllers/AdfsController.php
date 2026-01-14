@@ -116,13 +116,13 @@ class AdfsController extends Controller
         $nameIdFormat = $samlSession['nameIdFormat'] ?? null;
         $sessionIndex = $samlSession['sessionIndex'] ?? null;
         
-        Log::info("Logout initiated for user: {$email}");
-        Log::debug("SAML logout data - NameID: {$nameId}, NameIDFormat: {$nameIdFormat}, SessionIndex: {$sessionIndex}");
+        //Log::info("Logout initiated for user: {$email}");
+        //Log::debug("SAML logout data - NameID: {$nameId}, NameIDFormat: {$nameIdFormat}, SessionIndex: {$sessionIndex}");
         
         // Log SAML configuration for debugging
-        $samlConfig = $this->adfsService->buildSamlConfig();
-        Log::debug("SLS endpoint: " . json_encode($samlConfig['sp']['singleLogoutService'] ?? 'not set'));
-        Log::debug("IdP SLS endpoint: " . json_encode($samlConfig['idp']['singleLogoutService'] ?? 'not set'));
+        // $samlConfig = $this->adfsService->buildSamlConfig();
+        //Log::debug("SLS endpoint: " . json_encode($samlConfig['sp']['singleLogoutService'] ?? 'not set'));
+        //Log::debug("IdP SLS endpoint: " . json_encode($samlConfig['idp']['singleLogoutService'] ?? 'not set'));
         
         // Clear SAML session data
         Session::forget('saml_session');
@@ -137,20 +137,19 @@ class AdfsController extends Controller
         Session::regenerateToken();
         
         // Get ADFS logout URL from configuration
-        $environment = config('uw-adfs.environment', 'development');
-        $adfsLogoutBaseUrl = config("uw-adfs.idp.{$environment}.singleLogoutService.url");
+        // $environment = config('uw-adfs.environment', 'development');
+        // $adfsLogoutBaseUrl = config("uw-adfs.idp.{$environment}.singleLogoutService.url");
         
         // Construct ADFS logout URL with wa=wsignout1.0 parameter
         // This tells ADFS to perform a sign-out and clear all sessions
-        $adfsLogoutUrl = rtrim($adfsLogoutBaseUrl, '/');
+        //$adfsLogoutUrl = rtrim($adfsLogoutBaseUrl, '/');
         // $adfsLogoutUrl .= '?wa=wsignout1.0&wreply=' . urlencode(config('app.url'));
-        $adfsLogoutUrl .= '?wa=wsignout1.0&wreply=' . urlencode(config('app.url') . '/saml/sls');
+        // $adfsLogoutUrl .= '?wa=wsignout1.0&wreply=' . urlencode(config('app.url') . '/saml/sls');
         
-        Log::info("User logged out: {$email}");
-        Log::info("Redirecting to ADFS logout: {$adfsLogoutUrl}");
+        // Call ADFS logout and redirect to SLS
+        $this->adfsService->sls();
         
-        // Redirect to ADFS logout endpoint to clear ADFS session
-        return redirect($adfsLogoutUrl)
+        return redirect()->route('saml.sls')
             ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
             ->header('Pragma', 'no-cache')
             ->header('Expires', '0');
