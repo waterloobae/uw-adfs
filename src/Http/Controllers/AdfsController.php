@@ -108,15 +108,22 @@ class AdfsController extends Controller
     public function logout(Request $request): void
     {
         
-        // Standard SAML logout - contact ADFS
+        // Get SAML session data FIRST before clearing it
         $samlSession = Session::get('saml_session');
         $nameId = $samlSession['nameId'] ?? null;
         $nameIdFormat = $samlSession['nameIdFormat'] ?? null;
         $sessionIndex = $samlSession['sessionIndex'] ?? null;
-    
-        // Log out from Laravel
-        Auth::logout();
+        $returnTo = $request->get('returnTo', config('app.url'));
         
+        Log::debug("Logout initiated - NameID: {$nameId}, SessionIndex: {$sessionIndex}");
+        
+        // Get logout redirect URL from ADFS service BEFORE clearing session
+        $logoutUrl = $this->adfsService->logout($returnTo, $nameId, $sessionIndex, $nameIdFormat);
+        
+        Log::debug("ADFS logout URL obtained: " . ($logoutUrl ? substr($logoutUrl, 0, 100) . "..." : "none"));
+        
+        // NOW clear the local session
+        Auth::logout();
         Session::forget('saml_session');
         Session::invalidate();        
         Session::regenerateToken();
@@ -125,23 +132,14 @@ class AdfsController extends Controller
         // Clear session cookie
         \Cookie::queue(\Cookie::forget(config('session.cookie')));
             
-        $returnTo = $request->get('returnTo', config('app.url'));
         Log::info("Local logout completed, redirecting to: " . $returnTo);
-            
-        // Set cache control headers to prevent back button access
-        // header('Cache-Control: no-store, no-cache, no-buffer, must-revalidate, max-age=0');
-        // header('Pragma: no-cache');
-        // header('Expires: 0');
-        // header('Location: ' . $returnTo);
-        // exit();
-        // // Get logout redirect URL from ADFS service
-        $logoutUrl = $this->adfsService->logout($returnTo, $nameId, $sessionIndex, $nameIdFormat);
         
+        // Redirect to ADFS logout if we have a URL
         if ($logoutUrl) {
-            Log::info("Redirecting to logout URL: " . $logoutUrl);
+            Log::info("Redirecting to ADFS logout URL");
             header('Location: ' . $logoutUrl);
         } else {
-            Log::warning("No logout URL available, redirecting to home");
+            Log::warning("No ADFS logout URL available, redirecting to home");
             header('Location: ' . config('app.url'));
         }
         
