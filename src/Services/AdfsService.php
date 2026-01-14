@@ -289,7 +289,17 @@ class AdfsService
     public function logout(?string $returnTo = null, ?string $nameId = null, ?string $sessionIndex = null, ?string $nameIdFormat = null): void
     {
         Log::debug("Initiating SAML logout - NameID: {$nameId}, NameIDFormat: {$nameIdFormat}, SessionIndex: {$sessionIndex}, ReturnTo: {$returnTo}");
+        
+        // Log SAML configuration for debugging
+        $samlConfig = $this->buildSamlConfig();
+        Log::debug("SAML Config - SP SLS: " . json_encode($samlConfig['sp']['singleLogoutService'] ?? 'not set'));
+        Log::debug("SAML Config - IdP SLS: " . json_encode($samlConfig['idp']['singleLogoutService'] ?? 'not set'));
+        
+        // Call OneLogin logout
         $this->samlAuth->logout($returnTo, [], $nameId, $sessionIndex, $nameIdFormat);
+        
+        // Log the LogoutRequest that will be sent
+        Log::debug("SAML LogoutRequest generated - about to redirect to ADFS");
     }
 
     /**

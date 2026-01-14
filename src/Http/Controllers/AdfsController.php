@@ -109,6 +109,7 @@ class AdfsController extends Controller
     {
         $samlSession = Session::get('saml_session');
         $nameId = $samlSession['nameId'] ?? null;
+        $nameIdFormat = $samlSession['nameIdFormat'] ?? null;
         $sessionIndex = $samlSession['sessionIndex'] ?? null;
     
         // Log out from Laravel
@@ -120,7 +121,7 @@ class AdfsController extends Controller
         Session::flush();
 
         $returnTo = $request->get('returnTo', config('app.url'));
-        $this->adfsService->logout($returnTo, $nameId, $sessionIndex);
+        $this->adfsService->logout($returnTo, $nameId, $sessionIndex, $nameIdFormat);
     
         // The OneLogin library will handle the redirect via headers
         exit();        
