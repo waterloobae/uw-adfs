@@ -298,6 +298,7 @@ class AdfsService
         Log::debug("SAML Config - SP SLS: " . json_encode($samlConfig['sp']['singleLogoutService'] ?? 'not set'));
         Log::debug("SAML Config - IdP SLS: " . json_encode($samlConfig['idp']['singleLogoutService'] ?? 'not set'));
         Log::debug("SAML Config - IdP EntityID: " . ($samlConfig['idp']['entityId'] ?? 'not set'));
+        Log::debug("Security config logoutRequestSigned: " . ($samlConfig['security']['logoutRequestSigned'] ? 'true' : 'false'));
         
         // Check if we can get logout URL from OneLogin's headers first
         $headers = headers_list();
@@ -312,6 +313,9 @@ class AdfsService
         // Manually construct the LogoutRequest XML
         if ($idpSls && $nameId && $sessionIndex) {
             Log::debug("Manually constructing LogoutRequest XML");
+            
+            // Note: If logoutRequestSigned is enabled in config, ADFS may require a Signature element
+            // For now, we send unsigned requests as OneLogin's signing in this context is unreliable
             
             // Create LogoutRequest XML
             $issueInstant = date('Y-m-d\TH:i:s\Z');
