@@ -105,7 +105,7 @@ class AdfsController extends Controller
     /**
      * Handle SAML logout
      */
-    public function logout(Request $request): RedirectResponse
+    public function logout(Request $request): void
     {
         $samlSession = Session::get('saml_session');
         $nameId = $samlSession['nameId'] ?? null;
@@ -121,9 +121,11 @@ class AdfsController extends Controller
         Session::flush();
 
         $returnTo = $request->get('returnTo', config('app.url'));
+        
+        // Call ADFS logout - OneLogin will set redirect headers
         $this->adfsService->logout($returnTo, $nameId, $sessionIndex, $nameIdFormat);
     
-        // The OneLogin library will handle the redirect via headers
+        // The OneLogin library sets redirect headers, exit to prevent further processing
         exit();        
    }
 
