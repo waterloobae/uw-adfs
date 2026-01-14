@@ -284,7 +284,7 @@ class AdfsService
     }
 
     /**
-     * Initiate SAML logout
+     * Initiate SAML logout and get the logout URL
      */
     public function logout(?string $returnTo = null, ?string $nameId = null, ?string $sessionIndex = null, ?string $nameIdFormat = null): string
     {
@@ -295,15 +295,35 @@ class AdfsService
         Log::debug("SAML Config - SP SLS: " . json_encode($samlConfig['sp']['singleLogoutService'] ?? 'not set'));
         Log::debug("SAML Config - IdP SLS: " . json_encode($samlConfig['idp']['singleLogoutService'] ?? 'not set'));
         
-        // Call OneLogin logout - this sets redirect headers
+        // Call OneLogin logout to prepare the LogoutRequest
         $this->samlAuth->logout($returnTo, [], $nameId, $sessionIndex, $nameIdFormat);
         
-        Log::debug("SAML LogoutRequest generated - redirect headers set");
+        Log::debug("SAML LogoutRequest generated");
         
-        // Log all response headers set by OneLogin
+        // Try to get the logout URL from OneLogin
+        // Check if there's a Location header set
         $headers = headers_list();
         Log::debug("Response headers after logout: " . json_encode($headers));
         
+        // Extract Location header if it exists
+        foreach ($headers as $header) {
+            if (stripos($header, 'Location:') === 0) {
+                $logoutUrl = substr($header, 10); // Remove "Location: "
+                Log::info("Logout redirect URL: " . $logoutUrl);
+                return $logoutUrl;
+            }
+        }
+        
+        // If no Location header, try to get the URL from response
+        // This is a fallback - construct the URL manually from IdP SLS endpoint
+        $idpSls = $samlConfig['idp']['singleLogoutService']['url'] ?? null;
+        if ($idpSls) {
+            Log::warning("No Location header set by OneLogin, using IdP SLS endpoint as fallback");
+            Log::info("Logout redirect URL (fallback): " . $idpSls);
+            return $idpSls;
+        }
+        
+        Log::error("Could not determine logout redirect URL");
         return '';
     }
 

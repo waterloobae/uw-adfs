@@ -122,23 +122,18 @@ class AdfsController extends Controller
 
         $returnTo = $request->get('returnTo', config('app.url'));
         
-        // Call ADFS logout - OneLogin will set redirect headers
-        $this->adfsService->logout($returnTo, $nameId, $sessionIndex, $nameIdFormat);
-    
-        // Clear output buffers and send headers
-        if (function_exists('fastcgi_finish_request')) {
-            // FastCGI finish the request cleanly
-            ob_end_clean();
-            fastcgi_finish_request();
+        // Get logout redirect URL from ADFS service
+        $logoutUrl = $this->adfsService->logout($returnTo, $nameId, $sessionIndex, $nameIdFormat);
+        
+        if ($logoutUrl) {
+            Log::info("Redirecting to logout URL: " . $logoutUrl);
+            header('Location: ' . $logoutUrl);
         } else {
-            // For non-FastCGI, use ob_end_clean() and die()
-            while (ob_get_level()) {
-                ob_end_clean();
-            }
+            Log::warning("No logout URL available, redirecting to home");
+            header('Location: ' . config('app.url'));
         }
         
-        // Exit to prevent further processing
-        die();        
+        exit();        
    }
 
     /**
