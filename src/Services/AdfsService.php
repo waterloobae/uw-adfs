@@ -362,6 +362,17 @@ class AdfsService
                         }
                     }
                     
+                    // Add Format attribute to Issuer element if missing
+                    $issuerElements = $dom->getElementsByTagNameNS('urn:oasis:names:tc:SAML:2.0:assertion', 'Issuer');
+                    if ($issuerElements->length > 0) {
+                        $issuerElement = $issuerElements->item(0);
+                        if (!$issuerElement->hasAttribute('Format')) {
+                            Log::debug("Adding Format attribute to Issuer");
+                            $issuerElement->setAttribute('Format', 'urn:oasis:names:tc:SAML:2.0:nameid-format:entity');
+                            $logoutRequestXml = $dom->saveXML();
+                        }
+                    }
+                    
                 } catch (\Exception $e) {
                     Log::error("Error parsing LogoutRequest XML: " . $e->getMessage());
                     // Continue with original XML
