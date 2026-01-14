@@ -150,7 +150,10 @@ class AdfsController extends Controller
         Log::info("Redirecting to ADFS logout: {$adfsLogoutUrl}");
         
         // Redirect to ADFS logout endpoint to clear ADFS session
-        return redirect($adfsLogoutUrl); 
+        return redirect($adfsLogoutUrl)
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0');
     }
 
     /**
