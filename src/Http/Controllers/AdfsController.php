@@ -153,7 +153,7 @@ class AdfsController extends Controller
     /**
      * Handle SAML Single Logout Service
      */
-    public function sls(Request $request): RedirectResponse
+    public function sls(Request $request): void
     {
         Log::info("=== SLS ENDPOINT CALLED ===");
         Log::info("SLS request method: " . $request->method());
@@ -174,12 +174,24 @@ class AdfsController extends Controller
         }
         
         try {
-            Log::info("Calling AdfsService::sls() to process ADFS LogoutRequest");
-            $logoutResponseUrl = $this->adfsService->sls();
+            Log::info("Processing SAML SLO request");
             
-            Log::info("AdfsService::sls() completed successfully");
+            // Get Auth instance
+            $auth = $this->adfsService->getSamlAuth();
             
-            // Log out from Laravel if not already done
+            // Process the incoming LogoutRequest
+            Log::info("Calling processSLO(false)...");
+            $auth->processSLO(false);
+            
+            Log::info("processSLO() completed successfully");
+            
+            // Get errors if any
+            $errors = $auth->getErrors();
+            if (!empty($errors)) {
+                Log::warning("SAML SLO errors: " . implode(', ', $errors));
+            }
+            
+            // Log out from Laravel
             if (Auth::check()) {
                 Log::info("User is logged in, logging out from Laravel");
                 Auth::logout();
@@ -188,28 +200,36 @@ class AdfsController extends Controller
             
             Log::info("User logged out successfully");
             
-            // If we have a LogoutResponse URL, redirect to ADFS to acknowledge the logout
-            if ($logoutResponseUrl) {
-                Log::info("Redirecting to ADFS LogoutResponseUrl: " . substr($logoutResponseUrl, 0, 150) . "...");
-                return redirect($logoutResponseUrl)
-                    ->with('adfs.success', 'Successfully logged out')
-                    ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-                    ->header('Pragma', 'no-cache')
-                    ->header('Expires', '0');
-            } else {
-                Log::warning("No LogoutResponse URL generated, redirecting to home");
-                return redirect('/')
-                    ->with('adfs.success', 'Successfully logged out')
-                    ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-                    ->header('Pragma', 'no-cache')
-                    ->header('Expires', '0');
-            }
+            // Get RelayState
+            $relayState = $request->get('RelayState', '');
+            Log::info("RelayState for response: " . ($relayState ? $relayState : 'empty'));
+            
+            // Build the signed LogoutResponse
+            // buildLogoutResponse sets up the response but doesn't redirect automatically
+            Log::info("Building signed LogoutResponse...");
+            $auth->buildLogoutResponse($relayState);
+            
+            // The buildLogoutResponse() method sets the Location header
+            // We need to manually get it and redirect
+            Log::info("=== SLS RESPONSE: Sending signed LogoutResponse to ADFS ===");
             
         } catch (\Exception $e) {
             Log::error("SLS processing error: " . $e->getMessage());
             Log::debug("SLS exception trace: " . $e->getTraceAsString());
-            return redirect('/')->with('adfs.error', 'Logout failed: ' . $e->getMessage());
+            
+            // On error, still try to redirect with RelayState if available
+            $relayState = $_REQUEST['RelayState'] ?? '';
+            if ($relayState) {
+                Log::warning("Error in SLO, redirecting to RelayState: " . $relayState);
+                header('Location: ' . $relayState);
+            } else {
+                Log::warning("Error in SLO, redirecting to home");
+                header('Location: ' . config('app.url'));
+            }
         }
+        
+        // Exit to ensure no further output
+        exit();
     }
 
     /**

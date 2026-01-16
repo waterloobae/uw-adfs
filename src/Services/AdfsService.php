@@ -516,8 +516,14 @@ class AdfsService
 
     /**
      * Process SAML logout request from ADFS and generate signed LogoutResponse
+     * 
+     * This method:
+     * 1. Validates the incoming LogoutRequest from ADFS
+     * 2. Builds a signed LogoutResponse 
+     * 3. OneLogin will set the Location header for redirect
+     * 4. Controller should exit after this to trigger redirect
      */
-    public function sls(): string
+    public function sls(): void
     {
         Log::info("AdfsService::sls() - Processing incoming SAML LogoutRequest from ADFS");
         
@@ -534,69 +540,37 @@ class AdfsService
                 Log::debug("RelayState: " . $_REQUEST['RelayState']);
             }
             
-            // Check if SAML session data exists
-            if (session()->has('saml_session')) {
-                $samlSession = session()->get('saml_session');
-                Log::info("SAML session found. NameID: " . ($samlSession['nameId'] ?? 'N/A') . ", SessionIndex: " . substr($samlSession['sessionIndex'] ?? 'N/A', 0, 20) . "...");
-            } else {
-                Log::warning("No SAML session found - this may be OK for ADFS-initiated logout");
-            }
-            
-            // Try to process SLO (Single Logout)
-            // The false parameter allows processing logout without requiring strict validation
-            Log::info("Calling processSLO(false) to validate ADFS LogoutRequest...");
+            // Process the incoming LogoutRequest from ADFS
+            // false = don't raise exception on validation errors
+            Log::info("Processing incoming LogoutRequest with processSLO(false)...");
             $this->samlAuth->processSLO(false);
             
-            Log::info("AdfsService::sls() - processSLO() completed successfully");
+            Log::info("processSLO() completed successfully");
             
-            // Get the RelayState if provided
+            // Check for errors
+            $errors = $this->samlAuth->getErrors();
+            if (!empty($errors)) {
+                Log::warning('SAML SLO validation errors: ' . implode(', ', $errors));
+            }
+            
+            // Get RelayState for the response
             $relayState = $_REQUEST['RelayState'] ?? '';
-            Log::info("RelayState value: " . ($relayState ? $relayState : 'empty'));
+            Log::info("RelayState: " . ($relayState ? $relayState : 'empty'));
             
-            // Build and return signed LogoutResponse URL
-            // OneLogin will automatically add signature parameters when building the response
-            Log::info("Building signed LogoutResponse to send back to ADFS...");
-            
-            // buildLogoutResponse() builds the LogoutResponse XML and prepares the redirect
-            // It will set the Location header with the signed redirect URL
+            // Build the signed LogoutResponse 
+            // This will set Location header which the controller will trigger
+            Log::info("Building signed LogoutResponse with buildLogoutResponse()...");
             $this->samlAuth->buildLogoutResponse($relayState);
             
-            // Extract the Location header that OneLogin set
-            $headers = headers_list();
-            $logoutResponseUrl = '';
-            
-            foreach ($headers as $header) {
-                if (stripos($header, 'Location:') === 0) {
-                    $logoutResponseUrl = trim(substr($header, 9));
-                    Log::info("Logout response URL generated: " . substr($logoutResponseUrl, 0, 200) . "...");
-                    break;
-                }
-            }
-            
-            if (!$logoutResponseUrl) {
-                Log::error("buildLogoutResponse() did not generate Location header");
-                Log::debug("Headers set by buildLogoutResponse: " . json_encode($headers));
-            }
-            
-            return $logoutResponseUrl;
+            Log::info("buildLogoutResponse() completed - Location header should be set");
             
         } catch (\Exception $e) {
-            // Handle binding mismatch errors gracefully
             $errorMessage = $e->getMessage();
-            
-            Log::warning("AdfsService::sls() - Exception during processSLO: " . $errorMessage);
+            Log::error("AdfsService::sls() - Exception: " . $errorMessage);
             Log::debug("Exception trace: " . $e->getTraceAsString());
             
-            // If it's a binding error, log it but allow logout to continue
-            if (strpos($errorMessage, 'LogoutRequest/LogoutResponse not found') !== false || 
-                strpos($errorMessage, 'HTTP_REDIRECT Binding') !== false) {
-                Log::warning('SAML logout binding mismatch: ' . $errorMessage);
-                // Return empty to allow logout to complete despite binding issues
-                return '';
-            }
-            
-            // For other errors, throw the exception
-            throw $e;
+            // Don't re-throw - let controller handle gracefully
+            // The Location header may still be set even if exception occurs
         }
     }
 
