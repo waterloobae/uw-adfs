@@ -117,10 +117,15 @@ class AdfsController extends Controller
         $sessionIndex = $samlSession['sessionIndex'] ?? null;
         $returnTo = $request->get('returnTo', config('app.url'));
         
-        Log::info("Logout endpoint called - Retrieved session data: NameID=" . ($nameId ? $nameId : 'NULL') . ", SessionIndex=" . ($sessionIndex ? substr($sessionIndex, 0, 20) . '...' : 'NULL') . ", Format=" . ($nameIdFormat ? $nameIdFormat : 'NULL'));
+        // Get email from authenticated user
+        $email = Auth::user()?->email ?? null;
+        
+        Log::info("Logout endpoint called - User check: " . (Auth::check() ? 'authenticated' : 'not-authenticated'));
+        Log::info("User email: " . ($email ? $email : 'NULL'));
+        Log::info("Retrieved session data: NameID=" . ($nameId ? $nameId : 'NULL') . ", SessionIndex=" . ($sessionIndex ? substr($sessionIndex, 0, 20) . '...' : 'NULL') . ", Format=" . ($nameIdFormat ? $nameIdFormat : 'NULL') . ", Email=" . ($email ? $email : 'NULL'));
         
         // Get logout redirect URL from ADFS service BEFORE clearing session
-        $logoutUrl = $this->adfsService->logout($returnTo, $nameId, $sessionIndex, $nameIdFormat);
+        $logoutUrl = $this->adfsService->logout($returnTo, $nameId, $sessionIndex, $nameIdFormat, $email);
         
         // Log::debug("ADFS logout URL obtained: " . ($logoutUrl ? substr($logoutUrl, 0, 100) . "..." : "none"));
         

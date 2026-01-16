@@ -286,11 +286,11 @@ class AdfsService
     /**
      * Initiate SAML logout and get the logout URL
      */
-    public function logout(?string $returnTo = null, ?string $nameId = null, ?string $sessionIndex = null, ?string $nameIdFormat = null): string
+    public function logout(?string $returnTo = null, ?string $nameId = null, ?string $sessionIndex = null, ?string $nameIdFormat = null, ?string $email = null): string
     {
         try {
             Log::info("Initiating SAML logout via OneLogin");
-            Log::info("Logout session data - NameID: " . ($nameId ? $nameId : 'NULL/EMPTY') . ", SessionIndex: " . ($sessionIndex ? $sessionIndex : 'NULL/EMPTY') . ", NameIDFormat: " . ($nameIdFormat ? $nameIdFormat : 'NULL/EMPTY'));
+            Log::info("Logout session data - NameID: " . ($nameId ? $nameId : 'NULL/EMPTY') . ", SessionIndex: " . ($sessionIndex ? $sessionIndex : 'NULL/EMPTY') . ", NameIDFormat: " . ($nameIdFormat ? $nameIdFormat : 'NULL/EMPTY') . ", Email: " . ($email ? $email : 'NULL/EMPTY'));
             
             // Validate session data
             if (empty($nameId) || empty($sessionIndex)) {
@@ -300,11 +300,22 @@ class AdfsService
                 return $samlConfig['idp']['singleLogoutService']['url'] ?? '';
             }
             
+            // Use email address as NameID if provided
+            if (!empty($email)) {
+                Log::info("Using email address as NameID: {$email}");
+                $nameId = $email;
+            }
+            
+            // Use emailAddress format for email-based NameID
+            $nameIdFormat = 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress';
+            Log::info("Using emailAddress NameID format");
+            
             // Get SP SLS endpoint URL for RelayState
             $samlConfig = $this->buildSamlConfig();
             $spSls = $samlConfig['sp']['singleLogoutService']['url'] ?? null;
             
             Log::info("Using RelayState: " . ($spSls ? $spSls : 'none - using default'));
+            Log::info("Using NameID format: " . $nameIdFormat);
             
             // Pass session data to OneLogin's logout method
             // Parameters: $returnTo (used as default RelayState), $parameters, $nameId, $sessionIndex, $stay, $nameIdFormat, $nameIdNameQualifier, $nameIdSPNameQualifier
