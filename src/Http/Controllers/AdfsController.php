@@ -174,61 +174,43 @@ class AdfsController extends Controller
         }
         
         try {
-            Log::info("Processing SAML SLO request");
+            Log::info("Processing SAML SLO request - calling AdfsService::sls()");
             
-            // Get Auth instance
-            $auth = $this->adfsService->getSamlAuth();
+            // Process the incoming LogoutRequest and get the LogoutResponse URL
+            $logoutResponseUrl = $this->adfsService->sls();
             
-            // Process the incoming LogoutRequest
-            Log::info("Calling processSLO(false)...");
-            $auth->processSLO(false);
+            Log::info("AdfsService::sls() completed");
             
-            Log::info("processSLO() completed successfully");
-            
-            // Get errors if any
-            $errors = $auth->getErrors();
-            if (!empty($errors)) {
-                Log::warning("SAML SLO errors: " . implode(', ', $errors));
-            }
-            
-            // Log out from Laravel
+            // Log out from Laravel if not already done
             if (Auth::check()) {
                 Log::info("User is logged in, logging out from Laravel");
                 Auth::logout();
                 Session::invalidate();
             }
             
-            Log::info("User logged out successfully");
+            Log::info("User logged out successfully from Laravel session");
             
-            // Get RelayState
-            $relayState = $request->get('RelayState', '');
-            Log::info("RelayState for response: " . ($relayState ? $relayState : 'empty'));
-            
-            // Build the signed LogoutResponse
-            // buildLogoutResponse sets up the response but doesn't redirect automatically
-            Log::info("Building signed LogoutResponse...");
-            $auth->buildLogoutResponse($relayState);
-            
-            // The buildLogoutResponse() method sets the Location header
-            // We need to manually get it and redirect
-            Log::info("=== SLS RESPONSE: Sending signed LogoutResponse to ADFS ===");
+            // Redirect to the LogoutResponse URL if we have one
+            if ($logoutResponseUrl) {
+                Log::info("=== SLS RESPONSE: Redirecting to LogoutResponse URL ===");
+                Log::debug("LogoutResponse URL: " . substr($logoutResponseUrl, 0, 200) . "...");
+                
+                // Use raw header redirect to bypass Laravel's response handling
+                header('Location: ' . $logoutResponseUrl);
+            } else {
+                Log::warning("No LogoutResponse URL generated, redirecting to home");
+                header('Location: ' . config('app.url'));
+            }
             
         } catch (\Exception $e) {
             Log::error("SLS processing error: " . $e->getMessage());
             Log::debug("SLS exception trace: " . $e->getTraceAsString());
             
-            // On error, still try to redirect with RelayState if available
-            $relayState = $_REQUEST['RelayState'] ?? '';
-            if ($relayState) {
-                Log::warning("Error in SLO, redirecting to RelayState: " . $relayState);
-                header('Location: ' . $relayState);
-            } else {
-                Log::warning("Error in SLO, redirecting to home");
-                header('Location: ' . config('app.url'));
-            }
+            // On error, still try to redirect
+            header('Location: ' . config('app.url'));
         }
         
-        // Exit to ensure no further output
+        // Exit to ensure the redirect happens
         exit();
     }
 

@@ -515,15 +515,69 @@ class AdfsService
     }
 
     /**
+     * Build and return signed LogoutResponse URL for HTTP-Redirect binding
+     * 
+     * This generates the complete LogoutResponse redirect URL that needs to be 
+     * sent back to ADFS to complete the Single Logout flow.
+     */
+    public function buildLogoutResponseUrl(?string $relayState = null): string
+    {
+        try {
+            Log::info("Building LogoutResponse URL...");
+            
+            // Use OneLogin's buildLogoutResponse to prepare the response
+            // This signs the response and prepares the redirect
+            $this->samlAuth->buildLogoutResponse($relayState);
+            
+            // OneLogin sets the Location header, but we need to extract it
+            // because we're in a Laravel context where headers get processed
+            $headers = headers_list();
+            $logoutResponseUrl = '';
+            
+            foreach ($headers as $header) {
+                if (stripos($header, 'Location:') === 0) {
+                    $logoutResponseUrl = trim(substr($header, 9));
+                    Log::info("Extracted LogoutResponse Location header");
+                    break;
+                }
+            }
+            
+            if ($logoutResponseUrl) {
+                Log::info("LogoutResponse URL: " . substr($logoutResponseUrl, 0, 200) . "...");
+                return $logoutResponseUrl;
+            }
+            
+            // If OneLogin didn't set the header, try to build it manually
+            Log::warning("OneLogin did not set Location header, attempting manual build...");
+            
+            // Get the SAML config
+            $samlConfig = $this->buildSamlConfig();
+            $idpSls = $samlConfig['idp']['singleLogoutService']['url'] ?? '';
+            
+            if (!$idpSls) {
+                Log::error("No IdP SLS URL configured");
+                return '';
+            }
+            
+            Log::info("No LogoutResponse URL generated, falling back to IdP SLS: " . $idpSls);
+            return $idpSls;
+            
+        } catch (\Exception $e) {
+            Log::error("Error building LogoutResponse URL: " . $e->getMessage());
+            Log::debug("Exception: " . $e->getTraceAsString());
+            return '';
+        }
+    }
+
+    /**
      * Process SAML logout request from ADFS and generate signed LogoutResponse
      * 
      * This method:
      * 1. Validates the incoming LogoutRequest from ADFS
      * 2. Builds a signed LogoutResponse 
-     * 3. OneLogin will set the Location header for redirect
-     * 4. Controller should exit after this to trigger redirect
+     * 3. Returns the URL to redirect to
      */
-    public function sls(): void
+    public function sls(): string
     {
         Log::info("AdfsService::sls() - Processing incoming SAML LogoutRequest from ADFS");
         
@@ -555,22 +609,19 @@ class AdfsService
             
             // Get RelayState for the response
             $relayState = $_REQUEST['RelayState'] ?? '';
-            Log::info("RelayState: " . ($relayState ? $relayState : 'empty'));
+            Log::info("RelayState for response: " . ($relayState ? $relayState : 'empty'));
             
-            // Build the signed LogoutResponse 
-            // This will set Location header which the controller will trigger
-            Log::info("Building signed LogoutResponse with buildLogoutResponse()...");
-            $this->samlAuth->buildLogoutResponse($relayState);
+            // Build the LogoutResponse URL
+            $logoutResponseUrl = $this->buildLogoutResponseUrl($relayState);
             
-            Log::info("buildLogoutResponse() completed - Location header should be set");
+            Log::info("LogoutResponse URL built successfully");
+            return $logoutResponseUrl;
             
         } catch (\Exception $e) {
             $errorMessage = $e->getMessage();
             Log::error("AdfsService::sls() - Exception: " . $errorMessage);
             Log::debug("Exception trace: " . $e->getTraceAsString());
-            
-            // Don't re-throw - let controller handle gracefully
-            // The Location header may still be set even if exception occurs
+            return '';
         }
     }
 
