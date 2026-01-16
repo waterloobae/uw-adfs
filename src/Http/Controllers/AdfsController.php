@@ -115,12 +115,12 @@ class AdfsController extends Controller
         $sessionIndex = $samlSession['sessionIndex'] ?? null;
         $returnTo = $request->get('returnTo', config('app.url'));
         
-        Log::debug("Logout initiated - NameID: {$nameId}, SessionIndex: {$sessionIndex}");
+        // Log::debug("Logout initiated - NameID: {$nameId}, SessionIndex: {$sessionIndex}");
         
         // Get logout redirect URL from ADFS service BEFORE clearing session
         $logoutUrl = $this->adfsService->logout($returnTo, $nameId, $sessionIndex, $nameIdFormat);
         
-        Log::debug("ADFS logout URL obtained: " . ($logoutUrl ? substr($logoutUrl, 0, 100) . "..." : "none"));
+        // Log::debug("ADFS logout URL obtained: " . ($logoutUrl ? substr($logoutUrl, 0, 100) . "..." : "none"));
         
         // NOW clear the local session
         Auth::logout();
@@ -128,9 +128,6 @@ class AdfsController extends Controller
         Session::invalidate();        
         Session::regenerateToken();
         Session::flush();
-        
-        // Clear session cookie
-        \Cookie::queue(\Cookie::forget(config('session.cookie')));
             
         Log::info("Local logout completed, redirecting to: " . $returnTo);
         

@@ -93,20 +93,20 @@ class AdfsService
                 return '';
             }
             
-            Log::debug("Metadata XML retrieved, size: " . strlen($xml) . " bytes");
+            // Log::debug("Metadata XML retrieved, size: " . strlen($xml) . " bytes");
 
             $doc = new \DOMDocument();
             if (!@$doc->loadXML($xml)) {
                 Log::error("Failed to parse metadata XML");
                 return '';
             }
-            Log::debug("Metadata XML parsed successfully");
+            // Log::debug("Metadata XML parsed successfully");
 
             $xpath = new \DOMXPath($doc);
             $xpath->registerNamespace('ds', 'http://www.w3.org/2000/09/xmldsig#');
             
             $certNodes = $xpath->query('//ds:X509Certificate');
-            Log::debug("Found {$certNodes->length} X509Certificate node(s)");
+            // Log::debug("Found {$certNodes->length} X509Certificate node(s)");
             
             if ($certNodes->length > 0) {
                 $cert = $certNodes->item(0)->nodeValue;
@@ -288,7 +288,7 @@ class AdfsService
      */
     public function logout(?string $returnTo = null, ?string $nameId = null, ?string $sessionIndex = null, ?string $nameIdFormat = null): string
     {
-        Log::debug("Initiating SAML logout - NameID: {$nameId}, NameIDFormat: {$nameIdFormat}, SessionIndex: {$sessionIndex}, ReturnTo: {$returnTo}");
+        // Log::debug("Initiating SAML logout - NameID: {$nameId}, NameIDFormat: {$nameIdFormat}, SessionIndex: {$sessionIndex}, ReturnTo: {$returnTo}");
         
         // Get SAML configuration
         $samlConfig = $this->buildSamlConfig();
@@ -297,22 +297,22 @@ class AdfsService
         $privateKey = $samlConfig['sp']['privateKey'] ?? null;
         $certificate = $samlConfig['sp']['x509cert'] ?? null;
         
-        Log::debug("SP has private key: " . ($privateKey ? 'yes' : 'no'));
-        Log::debug("SP has certificate: " . ($certificate ? 'yes' : 'no'));
-        Log::debug("logoutRequestSigned: " . ($samlConfig['security']['logoutRequestSigned'] ? 'yes' : 'no'));
-        Log::debug("SAML Config - IdP SLS: " . json_encode($samlConfig['idp']['singleLogoutService'] ?? 'not set'));
+        // Log::debug("SP has private key: " . ($privateKey ? 'yes' : 'no'));
+        // Log::debug("SP has certificate: " . ($certificate ? 'yes' : 'no'));
+        // Log::debug("logoutRequestSigned: " . ($samlConfig['security']['logoutRequestSigned'] ? 'yes' : 'no'));
+        // Log::debug("SAML Config - IdP SLS: " . json_encode($samlConfig['idp']['singleLogoutService'] ?? 'not set'));
         
         // Primary path: Manual construction with proper signing
         // This ensures we send the correct SessionIndex, NameID, and NameIDFormat from the session
         if ($idpSls && $nameId && $sessionIndex) {
-            Log::debug("Manually constructing LogoutRequest with session data");
-            Log::debug("Session values - NameID: {$nameId}, NameIDFormat: {$nameIdFormat}, SessionIndex: {$sessionIndex}");
+            // Log::debug("Manually constructing LogoutRequest with session data");
+            // Log::debug("Session values - NameID: {$nameId}, NameIDFormat: {$nameIdFormat}, SessionIndex: {$sessionIndex}");
             
             // Create LogoutRequest XML
             $issueInstant = date('Y-m-d\TH:i:s\Z');
             $requestId = '_' . bin2hex(random_bytes(16));
             
-            Log::debug("IssueInstant: {$issueInstant}, RequestID: {$requestId}");
+            // Log::debug("IssueInstant: {$issueInstant}, RequestID: {$requestId}");
             
             // ADFS requires specific element order: Issuer -> Signature -> NameID -> SessionIndex
             // Also ensure xmlns:xsi is present for proper schema validation
@@ -339,25 +339,25 @@ class AdfsService
                 htmlspecialchars($sessionIndex)
             );
             
-            Log::debug("Unsigned LogoutRequest XML (COMPLETE): " . $logoutRequestXml);
+            // Log::debug("Unsigned LogoutRequest XML (COMPLETE): " . $logoutRequestXml);
             
             // Log deflated size
-            Log::debug("Full LogoutRequest (deflated, encoded): " . strlen(gzdeflate($logoutRequestXml)) . " bytes after deflate");
+            // Log::debug("Full LogoutRequest (deflated, encoded): " . strlen(gzdeflate($logoutRequestXml)) . " bytes after deflate");
             
             // Try signing only if private key exists AND logoutRequestSigned is explicitly true
             // Otherwise send unsigned
             if ($privateKey && $samlConfig['security']['logoutRequestSigned']) {
-                Log::debug("Signing LogoutRequest with SP private key");
+                // Log::debug("Signing LogoutRequest with SP private key");
                 try {
                     $logoutRequestXml = $this->signXml($logoutRequestXml, $privateKey, $requestId);
-                    Log::debug("LogoutRequest signed successfully");
+                    // Log::debug("LogoutRequest signed successfully");
                 } catch (\Exception $e) {
                     Log::error("Failed to sign LogoutRequest: " . $e->getMessage());
                     Log::warning("Sending LogoutRequest unsigned - signature signing failed");
                 }
             } else {
                 Log::info("Skipping LogoutRequest signature - sending unsigned request");
-                Log::debug("Reason - Has private key: " . ($privateKey ? 'yes' : 'no') . ", logoutRequestSigned config: " . ($samlConfig['security']['logoutRequestSigned'] ? 'yes' : 'no'));
+                // Log::debug("Reason - Has private key: " . ($privateKey ? 'yes' : 'no') . ", logoutRequestSigned config: " . ($samlConfig['security']['logoutRequestSigned'] ? 'yes' : 'no'));
             }
             
             // Deflate and base64 encode
@@ -368,7 +368,7 @@ class AdfsService
             }
             
             $encoded = base64_encode($deflated);
-            Log::debug("Encoded SAMLRequest length: " . strlen($encoded));
+            // Log::debug("Encoded SAMLRequest length: " . strlen($encoded));
             
             // Build logout URL
             $separator = strpos($idpSls, '?') === false ? '?' : '&';
@@ -378,7 +378,7 @@ class AdfsService
             $spSls = $samlConfig['sp']['singleLogoutService']['url'] ?? null;
             if ($spSls) {
                 $logoutUrl .= '&RelayState=' . urlencode($spSls);
-                Log::debug("Added RelayState to logout URL: " . $spSls);
+                // Log::debug("Added RelayState to logout URL: " . $spSls);
             }
             
             Log::info("Logout redirect URL (manual with signing): " . $logoutUrl);
@@ -386,9 +386,9 @@ class AdfsService
         }
         
         // Fallback: Try OneLogin's logout method if we don't have session data
-        Log::debug("Session data incomplete, trying OneLogin logout method as fallback");
+        // Log::debug("Session data incomplete, trying OneLogin logout method as fallback");
         try {
-            Log::debug("Using OneLogin SAML logout method as fallback");
+            // Log::debug("Using OneLogin SAML logout method as fallback");
             $this->samlAuth->logout($returnTo);
             
             // Check if OneLogin set the Location header
@@ -417,7 +417,7 @@ class AdfsService
     private function signXml(string $xml, string $privateKey, string $referenceId): string
     {
         try {
-            Log::debug("Starting XML signing process");
+            // Log::debug("Starting XML signing process");
             
             // Load the XML document
             $dom = new \DOMDocument();
@@ -432,7 +432,7 @@ class AdfsService
                 throw new \Exception("Failed to parse private key: " . openssl_error_string());
             }
             
-            Log::debug("Private key parsed successfully");
+            // Log::debug("Private key parsed successfully");
             
             $dsNamespace = 'http://www.w3.org/2000/09/xmldsig#';
             
@@ -486,7 +486,7 @@ class AdfsService
             $digestData = $this->canonicalizeXml($rootXml);
             $digest = base64_encode(hash('sha256', $digestData, true));
             
-            Log::debug("Document digest calculated: " . substr($digest, 0, 20) . "...");
+            // Log::debug("Document digest calculated: " . substr($digest, 0, 20) . "...");
             
             // Update DigestValue with actual value
             $digestValue->firstChild->nodeValue = $digest;
@@ -495,7 +495,7 @@ class AdfsService
             $signedInfoXml = $dom->saveXML($signedInfo);
             $signedInfoCanonicalized = $this->canonicalizeXml($signedInfoXml);
             
-            Log::debug("SignedInfo canonicalized, length: " . strlen($signedInfoCanonicalized));
+            // Log::debug("SignedInfo canonicalized, length: " . strlen($signedInfoCanonicalized));
             
             // Sign the SignedInfo
             $signatureValue = '';
@@ -505,7 +505,7 @@ class AdfsService
                 throw new \Exception("Failed to sign XML: " . openssl_error_string());
             }
             
-            Log::debug("XML signed successfully, signature length: " . strlen($signatureValue));
+            // Log::debug("XML signed successfully, signature length: " . strlen($signatureValue));
             
             // Create Signature element
             $signatureElement = $dom->createElementNS($dsNamespace, 'ds:Signature');
@@ -527,10 +527,10 @@ class AdfsService
                 // Insert after Issuer
                 if ($issuerElement->nextSibling) {
                     $rootElement->insertBefore($signatureElement, $issuerElement->nextSibling);
-                    Log::debug("Inserted Signature immediately after Issuer element");
+                    // Log::debug("Inserted Signature immediately after Issuer element");
                 } else {
                     $rootElement->appendChild($signatureElement);
-                    Log::debug("Appended Signature at end (Issuer was last element)");
+                    // Log::debug("Appended Signature at end (Issuer was last element)");
                 }
             } else {
                 Log::warning("Issuer element not found, appending Signature as last element");
@@ -538,9 +538,9 @@ class AdfsService
             }
             
             $signedXml = $dom->saveXML();
-            Log::debug("Signed XML length: " . strlen($signedXml));
+            // Log::debug("Signed XML length: " . strlen($signedXml));
             // Log complete signed XML for verification
-            Log::debug("Signed XML (COMPLETE): " . $signedXml);
+            // Log::debug("Signed XML (COMPLETE): " . $signedXml);
             
             return $signedXml;
         } catch (\Exception $e) {
@@ -571,28 +571,28 @@ class AdfsService
             // Log the request details
             $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'UNKNOWN';
             $hasLogoutRequest = isset($_REQUEST['SAMLRequest']) || isset($_REQUEST['SAMLResponse']);
-            Log::debug("SLS Request Method: {$requestMethod}, Has SAML Data: " . ($hasLogoutRequest ? 'yes' : 'no'));
+            // Log::debug("SLS Request Method: {$requestMethod}, Has SAML Data: " . ($hasLogoutRequest ? 'yes' : 'no'));
             
             // Check if SAML session data exists
             if (session()->has('saml_session')) {
                 $samlSession = session()->get('saml_session');
-                Log::debug("SAML session found. NameID: " . ($samlSession['nameId'] ?? 'N/A'));
+                // Log::debug("SAML session found. NameID: " . ($samlSession['nameId'] ?? 'N/A'));
             } else {
-                Log::debug("No SAML session found in request");
+                // Log::debug("No SAML session found in request");
             }
             
             // Try to process SLO (Single Logout)
             // The false parameter allows processing logout without requiring strict validation
             $this->samlAuth->processSLO(false);
             
-            Log::info("AdfsService::sls() - processSLO() completed without exception");
+            // Log::info("AdfsService::sls() - processSLO() completed without exception");
             
         } catch (\Exception $e) {
             // Handle binding mismatch errors gracefully
             $errorMessage = $e->getMessage();
             
             Log::warning("AdfsService::sls() - Exception during processSLO: " . $errorMessage);
-            Log::debug("Exception trace: " . $e->getTraceAsString());
+            // Log::debug("Exception trace: " . $e->getTraceAsString());
             
             // If it's a binding error, log it but allow logout to continue
             if (strpos($errorMessage, 'LogoutRequest/LogoutResponse not found') !== false || 
@@ -611,13 +611,13 @@ class AdfsService
             // Log errors but allow logout to complete
             Log::warning('SAML SLO errors: ' . implode(', ', $errors));
         } else {
-            Log::info("AdfsService::sls() - No SAML errors reported");
+            // Log::info("AdfsService::sls() - No SAML errors reported");
         }
         
         // Check if we got a logout response
         $lastErrorReason = $this->samlAuth->getLastErrorReason();
         if ($lastErrorReason) {
-            Log::info("AdfsService::sls() - Last error reason: " . $lastErrorReason);
+            // Log::info("AdfsService::sls() - Last error reason: " . $lastErrorReason);
         }
 
         return true;
