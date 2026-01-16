@@ -290,10 +290,11 @@ class AdfsService
     {
         try {
             Log::info("Initiating SAML logout via OneLogin");
+            Log::info("Logout session data - NameID: {$nameId}, SessionIndex: {$sessionIndex}, NameIDFormat: {$nameIdFormat}");
             
-            // Use OneLogin's built-in logout method
-            // This handles all XML construction, signing, and encoding
-            $this->samlAuth->logout($returnTo);
+            // Pass session data to OneLogin's logout method
+            // This ensures the correct NameID and SessionIndex are included in the LogoutRequest
+            $this->samlAuth->logout($returnTo, [], $nameId, $sessionIndex, false, $nameIdFormat);
             
             // Check if OneLogin set the Location header with logout URL
             $headers = headers_list();
