@@ -515,66 +515,74 @@ class AdfsService
     }
 
     /**
-     * Process SAML logout response (SLS endpoint)
+     * Process SAML logout request from ADFS and generate signed LogoutResponse
      */
-    public function sls(): bool
+    public function sls(): string
     {
-        Log::info("AdfsService::sls() - Processing SAML Single Logout Response from ADFS");
+        Log::info("AdfsService::sls() - Processing incoming SAML LogoutRequest from ADFS");
         
         try {
             // Log the request details
             $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'UNKNOWN';
             $hasLogoutRequest = isset($_REQUEST['SAMLRequest']) || isset($_REQUEST['SAMLResponse']);
-            // Log::debug("SLS Request Method: {$requestMethod}, Has SAML Data: " . ($hasLogoutRequest ? 'yes' : 'no'));
+            Log::info("SLS Request Method: {$requestMethod}, Has SAML Data: " . ($hasLogoutRequest ? 'yes' : 'no'));
+            
+            if (isset($_REQUEST['SAMLRequest'])) {
+                Log::debug("Received SAMLRequest (first 100 chars): " . substr($_REQUEST['SAMLRequest'], 0, 100) . "...");
+            }
+            if (isset($_REQUEST['RelayState'])) {
+                Log::debug("RelayState: " . $_REQUEST['RelayState']);
+            }
             
             // Check if SAML session data exists
             if (session()->has('saml_session')) {
                 $samlSession = session()->get('saml_session');
-                // Log::debug("SAML session found. NameID: " . ($samlSession['nameId'] ?? 'N/A'));
+                Log::info("SAML session found. NameID: " . ($samlSession['nameId'] ?? 'N/A') . ", SessionIndex: " . substr($samlSession['sessionIndex'] ?? 'N/A', 0, 20) . "...");
             } else {
-                // Log::debug("No SAML session found in request");
+                Log::warning("No SAML session found - this may be OK for ADFS-initiated logout");
             }
             
             // Try to process SLO (Single Logout)
             // The false parameter allows processing logout without requiring strict validation
+            Log::info("Calling processSLO(false) to validate ADFS LogoutRequest...");
             $this->samlAuth->processSLO(false);
             
-            // Log::info("AdfsService::sls() - processSLO() completed without exception");
+            Log::info("AdfsService::sls() - processSLO() completed successfully");
+            
+            // Get the RelayState if provided
+            $relayState = $_REQUEST['RelayState'] ?? '';
+            Log::info("RelayState value: " . ($relayState ? $relayState : 'empty'));
+            
+            // Generate signed LogoutResponse
+            // OneLogin automatically adds the redirect header if we call buildLogoutResponse
+            Log::info("Generating signed LogoutResponse to send back to ADFS...");
+            $response = $this->samlAuth->getLastResponseXML();
+            Log::debug("Last response XML (first 200 chars): " . substr($response ?? 'null', 0, 200));
+            
+            // Get the logout response URL that OneLogin prepared
+            $logoutUrl = $this->samlAuth->getLogoutResponseUrl($relayState);
+            Log::info("OneLogin LogoutResponseUrl: " . substr($logoutUrl, 0, 150) . "...");
+            
+            return $logoutUrl;
             
         } catch (\Exception $e) {
             // Handle binding mismatch errors gracefully
             $errorMessage = $e->getMessage();
             
             Log::warning("AdfsService::sls() - Exception during processSLO: " . $errorMessage);
-            // Log::debug("Exception trace: " . $e->getTraceAsString());
+            Log::debug("Exception trace: " . $e->getTraceAsString());
             
             // If it's a binding error, log it but allow logout to continue
             if (strpos($errorMessage, 'LogoutRequest/LogoutResponse not found') !== false || 
                 strpos($errorMessage, 'HTTP_REDIRECT Binding') !== false) {
                 Log::warning('SAML logout binding mismatch: ' . $errorMessage);
-                // Return true to allow logout to complete despite binding issues
-                return true;
+                // Return empty to allow logout to complete despite binding issues
+                return '';
             }
             
             // For other errors, throw the exception
             throw $e;
         }
-
-        $errors = $this->samlAuth->getErrors();
-        if (!empty($errors)) {
-            // Log errors but allow logout to complete
-            Log::warning('SAML SLO errors: ' . implode(', ', $errors));
-        } else {
-            // Log::info("AdfsService::sls() - No SAML errors reported");
-        }
-        
-        // Check if we got a logout response
-        $lastErrorReason = $this->samlAuth->getLastErrorReason();
-        if ($lastErrorReason) {
-            // Log::info("AdfsService::sls() - Last error reason: " . $lastErrorReason);
-        }
-
-        return true;
     }
 
     /**

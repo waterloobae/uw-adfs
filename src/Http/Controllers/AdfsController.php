@@ -174,8 +174,8 @@ class AdfsController extends Controller
         }
         
         try {
-            Log::info("Calling AdfsService::sls()");
-            $this->adfsService->sls();
+            Log::info("Calling AdfsService::sls() to process ADFS LogoutRequest");
+            $logoutResponseUrl = $this->adfsService->sls();
             
             Log::info("AdfsService::sls() completed successfully");
             
@@ -188,11 +188,22 @@ class AdfsController extends Controller
             
             Log::info("User logged out successfully");
             
-        return redirect('/')
-            ->with('adfs.success', 'Successfully logged out')
-            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-            ->header('Pragma', 'no-cache')
-            ->header('Expires', '0');
+            // If we have a LogoutResponse URL, redirect to ADFS to acknowledge the logout
+            if ($logoutResponseUrl) {
+                Log::info("Redirecting to ADFS LogoutResponseUrl: " . substr($logoutResponseUrl, 0, 150) . "...");
+                return redirect($logoutResponseUrl)
+                    ->with('adfs.success', 'Successfully logged out')
+                    ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                    ->header('Pragma', 'no-cache')
+                    ->header('Expires', '0');
+            } else {
+                Log::warning("No LogoutResponse URL generated, redirecting to home");
+                return redirect('/')
+                    ->with('adfs.success', 'Successfully logged out')
+                    ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                    ->header('Pragma', 'no-cache')
+                    ->header('Expires', '0');
+            }
             
         } catch (\Exception $e) {
             Log::error("SLS processing error: " . $e->getMessage());
