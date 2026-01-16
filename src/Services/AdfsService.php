@@ -311,16 +311,19 @@ class AdfsService
             $issueInstant = date('Y-m-d\TH:i:s\Z');
             $requestId = '_' . bin2hex(random_bytes(16));
             
+            // ADFS requires specific element order: Issuer -> Signature -> NameID -> SessionIndex
+            // Also ensure xmlns:xsi is present for proper schema validation
             $logoutRequestXml = sprintf('<?xml version="1.0" encoding="UTF-8"?>
 <samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
     xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     ID="%s"
     Version="2.0"
     IssueInstant="%s"
     Destination="%s">
     <saml:Issuer Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">%s</saml:Issuer>
-    <saml:NameID Format="%s">%s</saml:NameID>
+    <saml:NameID Format="%s" SPNameQualifier="%s">%s</saml:NameID>
     <samlp:SessionIndex>%s</samlp:SessionIndex>
 </samlp:LogoutRequest>',
                 htmlspecialchars($requestId),
@@ -328,11 +331,15 @@ class AdfsService
                 htmlspecialchars($idpSls),
                 htmlspecialchars($spEntityId),
                 htmlspecialchars($nameIdFormat ?? 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified'),
+                htmlspecialchars($spEntityId), // SPNameQualifier should be the SP EntityID
                 htmlspecialchars($nameId),
                 htmlspecialchars($sessionIndex)
             );
             
-            Log::debug("Unsigned LogoutRequest XML: " . substr($logoutRequestXml, 0, 300));
+            Log::debug("Unsigned LogoutRequest XML: " . substr($logoutRequestXml, 0, 500));
+            
+            // Log the full LogoutRequest for debugging purposes (truncated to avoid huge logs)
+            Log::debug("Full LogoutRequest (deflated, encoded): " . strlen(gzdeflate($logoutRequestXml)) . " bytes after deflate");
             
             // Sign the request if private key is available
             if ($privateKey) {
@@ -508,14 +515,21 @@ class AdfsService
             
             // Insert Signature after Issuer element (ADFS expects specific element order)
             // Order should be: Issuer, Signature, NameID, SessionIndex
+            $rootElement = $signatureElement->ownerDocument->documentElement;
             $issuerElement = $rootElement->getElementsByTagNameNS('urn:oasis:names:tc:SAML:2.0:assertion', 'Issuer')->item(0);
-            if ($issuerElement && $issuerElement->nextSibling) {
-                $rootElement->insertBefore($signatureElement, $issuerElement->nextSibling);
-                Log::debug("Inserted Signature after Issuer element");
+            
+            if ($issuerElement) {
+                // Insert after Issuer
+                if ($issuerElement->nextSibling) {
+                    $rootElement->insertBefore($signatureElement, $issuerElement->nextSibling);
+                    Log::debug("Inserted Signature immediately after Issuer element");
+                } else {
+                    $rootElement->appendChild($signatureElement);
+                    Log::debug("Appended Signature at end (Issuer was last element)");
+                }
             } else {
-                // Fallback: insert after first child
-                $rootElement->insertBefore($signatureElement, $rootElement->firstChild->nextSibling ?? $rootElement->firstChild);
-                Log::debug("Inserted Signature as fallback position");
+                Log::warning("Issuer element not found, appending Signature as last element");
+                $rootElement->appendChild($signatureElement);
             }
             
             $signedXml = $dom->saveXML();
@@ -544,33 +558,33 @@ class AdfsService
      */
     public function sls(): bool
     {
-        // Log::info("AdfsService::sls() - Processing SAML Single Logout Response from ADFS");
+        Log::info("AdfsService::sls() - Processing SAML Single Logout Response from ADFS");
         
         try {
             // Check if SAML session data exists
             if (session()->has('saml_session')) {
                 $samlSession = session()->get('saml_session');
-                // Log::debug("SAML session found. NameID: " . ($samlSession['nameId'] ?? 'N/A'));
+                Log::debug("SAML session found. NameID: " . ($samlSession['nameId'] ?? 'N/A'));
             } else {
-                // Log::debug("No SAML session found in request");
+                Log::debug("No SAML session found in request");
             }
             
             // Try to process SLO (Single Logout)
             // The false parameter allows processing logout without requiring strict validation
             $this->samlAuth->processSLO(false);
             
-            // Log::info("AdfsService::sls() - processSLO() completed without exception");
+            Log::info("AdfsService::sls() - processSLO() completed without exception");
             
         } catch (\Exception $e) {
             // Handle binding mismatch errors gracefully
             $errorMessage = $e->getMessage();
             
-            // Log::warning("AdfsService::sls() - Exception: " . $errorMessage);
+            Log::warning("AdfsService::sls() - Exception: " . $errorMessage);
             
             // If it's a binding error, log it but allow logout to continue
             if (strpos($errorMessage, 'LogoutRequest/LogoutResponse not found') !== false || 
                 strpos($errorMessage, 'HTTP_REDIRECT Binding') !== false) {
-                // Log::warning('SAML logout binding mismatch: ' . $errorMessage);
+                Log::warning('SAML logout binding mismatch: ' . $errorMessage);
                 // Return true to allow logout to complete despite binding issues
                 return true;
             }
@@ -582,15 +596,15 @@ class AdfsService
         $errors = $this->samlAuth->getErrors();
         if (!empty($errors)) {
             // Log errors but allow logout to complete
-            // Log::warning('SAML SLO errors: ' . implode(', ', $errors));
+            Log::warning('SAML SLO errors: ' . implode(', ', $errors));
         } else {
-            // Log::info("AdfsService::sls() - No SAML errors reported");
+            Log::info("AdfsService::sls() - No SAML errors reported");
         }
         
         // Check if we got a logout response
         $lastErrorReason = $this->samlAuth->getLastErrorReason();
         if ($lastErrorReason) {
-            // Log::info("AdfsService::sls() - Last error reason: " . $lastErrorReason);
+            Log::info("AdfsService::sls() - Last error reason: " . $lastErrorReason);
         }
 
         return true;
