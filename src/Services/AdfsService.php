@@ -306,10 +306,13 @@ class AdfsService
         // This ensures we send the correct SessionIndex, NameID, and NameIDFormat from the session
         if ($idpSls && $nameId && $sessionIndex) {
             Log::debug("Manually constructing LogoutRequest with session data");
+            Log::debug("Session values - NameID: {$nameId}, NameIDFormat: {$nameIdFormat}, SessionIndex: {$sessionIndex}");
             
             // Create LogoutRequest XML
             $issueInstant = date('Y-m-d\TH:i:s\Z');
             $requestId = '_' . bin2hex(random_bytes(16));
+            
+            Log::debug("IssueInstant: {$issueInstant}, RequestID: {$requestId}");
             
             // ADFS requires specific element order: Issuer -> Signature -> NameID -> SessionIndex
             // Also ensure xmlns:xsi is present for proper schema validation
