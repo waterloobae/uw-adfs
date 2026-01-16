@@ -339,9 +339,10 @@ class AdfsService
                 htmlspecialchars($sessionIndex)
             );
             
-            Log::debug("Unsigned LogoutRequest XML: " . substr($logoutRequestXml, 0, 500));
+            // Log complete unsigned XML for verification
+            Log::debug("Unsigned LogoutRequest XML (COMPLETE): " . $logoutRequestXml);
             
-            // Log the full LogoutRequest for debugging purposes (truncated to avoid huge logs)
+            // Log deflated size
             Log::debug("Full LogoutRequest (deflated, encoded): " . strlen(gzdeflate($logoutRequestXml)) . " bytes after deflate");
             
             // Sign the request if private key is available
@@ -536,7 +537,9 @@ class AdfsService
             }
             
             $signedXml = $dom->saveXML();
-            Log::debug("Signed XML length: " . strlen($signedXml) . ", first 600 chars:\n" . substr($signedXml, 0, 600));
+            Log::debug("Signed XML length: " . strlen($signedXml));
+            // Log complete signed XML for verification
+            Log::debug("Signed XML (COMPLETE): " . $signedXml);
             
             return $signedXml;
         } catch (\Exception $e) {
