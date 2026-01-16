@@ -553,17 +553,32 @@ class AdfsService
             $relayState = $_REQUEST['RelayState'] ?? '';
             Log::info("RelayState value: " . ($relayState ? $relayState : 'empty'));
             
-            // Generate signed LogoutResponse
-            // OneLogin automatically adds the redirect header if we call buildLogoutResponse
-            Log::info("Generating signed LogoutResponse to send back to ADFS...");
-            $response = $this->samlAuth->getLastResponseXML();
-            Log::debug("Last response XML (first 200 chars): " . substr($response ?? 'null', 0, 200));
+            // Build and return signed LogoutResponse URL
+            // OneLogin will automatically add signature parameters when building the response
+            Log::info("Building signed LogoutResponse to send back to ADFS...");
             
-            // Get the logout response URL that OneLogin prepared
-            $logoutUrl = $this->samlAuth->getLogoutResponseUrl($relayState);
-            Log::info("OneLogin LogoutResponseUrl: " . substr($logoutUrl, 0, 150) . "...");
+            // buildLogoutResponse() builds the LogoutResponse XML and prepares the redirect
+            // It will set the Location header with the signed redirect URL
+            $this->samlAuth->buildLogoutResponse($relayState);
             
-            return $logoutUrl;
+            // Extract the Location header that OneLogin set
+            $headers = headers_list();
+            $logoutResponseUrl = '';
+            
+            foreach ($headers as $header) {
+                if (stripos($header, 'Location:') === 0) {
+                    $logoutResponseUrl = trim(substr($header, 9));
+                    Log::info("Logout response URL generated: " . substr($logoutResponseUrl, 0, 200) . "...");
+                    break;
+                }
+            }
+            
+            if (!$logoutResponseUrl) {
+                Log::error("buildLogoutResponse() did not generate Location header");
+                Log::debug("Headers set by buildLogoutResponse: " . json_encode($headers));
+            }
+            
+            return $logoutResponseUrl;
             
         } catch (\Exception $e) {
             // Handle binding mismatch errors gracefully
