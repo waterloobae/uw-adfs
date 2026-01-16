@@ -567,6 +567,11 @@ class AdfsService
         Log::info("AdfsService::sls() - Processing SAML Single Logout Response from ADFS");
         
         try {
+            // Log the request details
+            $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'UNKNOWN';
+            $hasLogoutRequest = isset($_REQUEST['SAMLRequest']) || isset($_REQUEST['SAMLResponse']);
+            Log::debug("SLS Request Method: {$requestMethod}, Has SAML Data: " . ($hasLogoutRequest ? 'yes' : 'no'));
+            
             // Check if SAML session data exists
             if (session()->has('saml_session')) {
                 $samlSession = session()->get('saml_session');
@@ -585,7 +590,8 @@ class AdfsService
             // Handle binding mismatch errors gracefully
             $errorMessage = $e->getMessage();
             
-            Log::warning("AdfsService::sls() - Exception: " . $errorMessage);
+            Log::warning("AdfsService::sls() - Exception during processSLO: " . $errorMessage);
+            Log::debug("Exception trace: " . $e->getTraceAsString());
             
             // If it's a binding error, log it but allow logout to continue
             if (strpos($errorMessage, 'LogoutRequest/LogoutResponse not found') !== false || 

@@ -151,25 +151,39 @@ class AdfsController extends Controller
      */
     public function sls(Request $request): RedirectResponse
     {
-        // Log::info("SLS endpoint called - processing ADFS logout response");
-        // Log::debug("SLS request params: " . json_encode($request->all()));
-        // Log::debug("SLS GET params: " . json_encode($request->query->all()));
-        // Log::debug("SLS POST params: " . json_encode($request->request->all()));
-        // Log::debug("SLS request method: " . $request->method());
-        // Log::debug("SLS server vars - SAMLResponse: " . ($request->server('QUERY_STRING') ?? 'N/A'));
+        Log::info("=== SLS ENDPOINT CALLED ===");
+        Log::info("SLS request method: " . $request->method());
+        Log::info("SLS request path: " . $request->path());
+        
+        // Log all parameters
+        Log::debug("SLS query parameters: " . json_encode($request->query->all()));
+        
+        // Log SAMLResponse if present
+        if ($request->has('SAMLResponse')) {
+            Log::debug("SAMLResponse present: " . substr($request->get('SAMLResponse'), 0, 100) . "...");
+        }
+        if ($request->has('SAMLRequest')) {
+            Log::debug("SAMLRequest present: " . substr($request->get('SAMLRequest'), 0, 100) . "...");
+        }
+        if ($request->has('RelayState')) {
+            Log::debug("RelayState: " . $request->get('RelayState'));
+        }
         
         try {
+            Log::info("Calling AdfsService::sls()");
             $this->adfsService->sls();
             
-            // Log::info("ADFS SLS processed successfully");
+            Log::info("AdfsService::sls() completed successfully");
             
             // Log out from Laravel if not already done
             if (Auth::check()) {
+                Log::info("User is logged in, logging out from Laravel");
                 Auth::logout();
                 Session::invalidate();
             }
             
-            // Log::info("User logged out from Laravel");
+            Log::info("User logged out successfully");
+            
         return redirect('/')
             ->with('adfs.success', 'Successfully logged out')
             ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
@@ -177,8 +191,8 @@ class AdfsController extends Controller
             ->header('Expires', '0');
             
         } catch (\Exception $e) {
-            // Log::error("SLS processing error: " . $e->getMessage());
-            // Log::debug("SLS exception trace: " . $e->getTraceAsString());
+            Log::error("SLS processing error: " . $e->getMessage());
+            Log::debug("SLS exception trace: " . $e->getTraceAsString());
             return redirect('/')->with('adfs.error', 'Logout failed: ' . $e->getMessage());
         }
     }
