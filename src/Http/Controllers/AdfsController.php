@@ -74,6 +74,8 @@ class AdfsController extends Controller
                     'access_control_result' => $accessResult,
                 ]);
                 
+                Log::info("SAML session stored - NameID: " . ($samlData['nameId'] ?? 'NULL') . ", SessionIndex: " . ($samlData['sessionIndex'] ?? 'NULL') . ", Format: " . ($samlData['nameIdFormat'] ?? 'NULL'));
+                
                 // Get return URL from RelayState or default
                 $returnTo = $request->get('RelayState');
                 if (empty($returnTo) || $returnTo === config('app.url')) {
@@ -115,7 +117,7 @@ class AdfsController extends Controller
         $sessionIndex = $samlSession['sessionIndex'] ?? null;
         $returnTo = $request->get('returnTo', config('app.url'));
         
-        // Log::debug("Logout initiated - NameID: {$nameId}, SessionIndex: {$sessionIndex}");
+        Log::info("Logout endpoint called - Retrieved session data: NameID=" . ($nameId ? $nameId : 'NULL') . ", SessionIndex=" . ($sessionIndex ? substr($sessionIndex, 0, 20) . '...' : 'NULL') . ", Format=" . ($nameIdFormat ? $nameIdFormat : 'NULL'));
         
         // Get logout redirect URL from ADFS service BEFORE clearing session
         $logoutUrl = $this->adfsService->logout($returnTo, $nameId, $sessionIndex, $nameIdFormat);

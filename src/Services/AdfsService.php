@@ -290,11 +290,26 @@ class AdfsService
     {
         try {
             Log::info("Initiating SAML logout via OneLogin");
-            Log::info("Logout session data - NameID: {$nameId}, SessionIndex: {$sessionIndex}, NameIDFormat: {$nameIdFormat}");
+            Log::info("Logout session data - NameID: " . ($nameId ? $nameId : 'NULL/EMPTY') . ", SessionIndex: " . ($sessionIndex ? $sessionIndex : 'NULL/EMPTY') . ", NameIDFormat: " . ($nameIdFormat ? $nameIdFormat : 'NULL/EMPTY'));
+            
+            // Validate session data
+            if (empty($nameId) || empty($sessionIndex)) {
+                Log::error("Missing critical logout data - NameID: " . ($nameId ? 'provided' : 'NULL') . ", SessionIndex: " . ($sessionIndex ? 'provided' : 'NULL'));
+                // Fall back to IdP SLS URL
+                $samlConfig = $this->buildSamlConfig();
+                return $samlConfig['idp']['singleLogoutService']['url'] ?? '';
+            }
+            
+            // Get SP SLS endpoint URL for RelayState
+            $samlConfig = $this->buildSamlConfig();
+            $spSls = $samlConfig['sp']['singleLogoutService']['url'] ?? null;
+            
+            Log::info("Using RelayState: " . ($spSls ? $spSls : 'none - using default'));
             
             // Pass session data to OneLogin's logout method
-            // This ensures the correct NameID and SessionIndex are included in the LogoutRequest
-            $this->samlAuth->logout($returnTo, [], $nameId, $sessionIndex, false, $nameIdFormat);
+            // Parameters: $returnTo (used as default RelayState), $parameters, $nameId, $sessionIndex, $stay, $nameIdFormat, $nameIdNameQualifier, $nameIdSPNameQualifier
+            // The RelayState should point to our SLS endpoint so ADFS knows where to send the logout response
+            $this->samlAuth->logout($spSls ?: $returnTo, [], $nameId, $sessionIndex, false, $nameIdFormat);
             
             // Check if OneLogin set the Location header with logout URL
             $headers = headers_list();
@@ -307,7 +322,6 @@ class AdfsService
             }
             
             // Fallback: return IdP SLS URL if OneLogin didn't generate one
-            $samlConfig = $this->buildSamlConfig();
             $idpSls = $samlConfig['idp']['singleLogoutService']['url'] ?? '';
             
             if ($idpSls) {
@@ -320,6 +334,7 @@ class AdfsService
             
         } catch (\Exception $e) {
             Log::error("Logout generation failed: " . $e->getMessage());
+            Log::error("Exception trace: " . $e->getTraceAsString());
             
             // Fallback: return IdP SLS URL
             $samlConfig = $this->buildSamlConfig();
