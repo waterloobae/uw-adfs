@@ -314,6 +314,14 @@ class AdfsService
             $samlConfig = $this->buildSamlConfig();
             $spSls = $samlConfig['sp']['singleLogoutService']['url'] ?? null;
             
+            // Modify Issuer to include /saml/sls as requested by ADFS admin
+            $originalIssuer = $samlConfig['sp']['entityId'];
+            $samlConfig['sp']['entityId'] = $originalIssuer . '/saml/sls';
+            Log::info("Modified Issuer from '{$originalIssuer}' to '{$samlConfig['sp']['entityId']}'");
+            
+            // Reinitialize SAML Auth with modified config
+            $this->samlAuth = new Auth($samlConfig);
+            
             Log::info("Using RelayState: " . ($spSls ? $spSls : 'none - using default'));
             Log::info("Using NameID format: " . $nameIdFormat);
             
