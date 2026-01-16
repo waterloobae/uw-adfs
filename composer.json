@@ -1,6 +1,6 @@
 {
     "name": "waterloobae/uw-adfs",
-    "version": "1.2.84",
+    "version": "1.2.85",
     "description": "University of Waterloo ADFS SAML authentication package for Laravel",
     "keywords": ["laravel", "adfs", "saml", "authentication", "uwaterloo"],
     "type": "library",
