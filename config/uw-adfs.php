@@ -59,7 +59,7 @@ return [
     'security' => [
         'nameIdEncrypted' => false,
         'authnRequestsSigned' => false,
-        'logoutRequestSigned' => true,  // ADFS requires signed logout requests
+        'logoutRequestSigned' => false,  // Changed to false to test unsigned logout requests
         'logoutResponseSigned' => false,
         'signMetadata' => false,
         'wantMessagesSigned' => false,

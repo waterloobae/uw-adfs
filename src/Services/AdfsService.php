@@ -339,24 +339,25 @@ class AdfsService
                 htmlspecialchars($sessionIndex)
             );
             
-            // Log complete unsigned XML for verification
             Log::debug("Unsigned LogoutRequest XML (COMPLETE): " . $logoutRequestXml);
             
             // Log deflated size
             Log::debug("Full LogoutRequest (deflated, encoded): " . strlen(gzdeflate($logoutRequestXml)) . " bytes after deflate");
             
-            // Sign the request if private key is available
-            if ($privateKey) {
+            // Try signing only if private key exists AND logoutRequestSigned is explicitly true
+            // Otherwise send unsigned
+            if ($privateKey && $samlConfig['security']['logoutRequestSigned']) {
                 Log::debug("Signing LogoutRequest with SP private key");
                 try {
                     $logoutRequestXml = $this->signXml($logoutRequestXml, $privateKey, $requestId);
                     Log::debug("LogoutRequest signed successfully");
                 } catch (\Exception $e) {
                     Log::error("Failed to sign LogoutRequest: " . $e->getMessage());
-                    Log::warning("Sending LogoutRequest without signature - ADFS may reject it");
+                    Log::warning("Sending LogoutRequest unsigned - signature signing failed");
                 }
             } else {
-                Log::warning("No SP private key configured - sending unsigned LogoutRequest");
+                Log::info("Skipping LogoutRequest signature - sending unsigned request");
+                Log::debug("Reason - Has private key: " . ($privateKey ? 'yes' : 'no') . ", logoutRequestSigned config: " . ($samlConfig['security']['logoutRequestSigned'] ? 'yes' : 'no'));
             }
             
             // Deflate and base64 encode
