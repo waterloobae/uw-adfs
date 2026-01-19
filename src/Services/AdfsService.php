@@ -343,18 +343,12 @@ class AdfsService
                 return $samlConfig['idp']['singleLogoutService']['url'] ?? '';
             }
             
-            // Use email address as NameID if provided
-            if (!empty($email)) {
-                Log::info("Using email address as NameID: {$email}");
-                $nameId = $email;
-            }
-            
-            // Use the NameID format from session, or default to persistent
+            // Use the NameID format from session, or default to unspecified
             if (empty($nameIdFormat)) {
-                $nameIdFormat = 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent';
-                Log::info("No NameIDFormat provided, defaulting to persistent");
+                $nameIdFormat = 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified';
+                Log::info("No NameIDFormat provided, defaulting to unspecified");
             }
-            Log::info("Using NameID format: {$nameIdFormat}");
+            Log::info("Using NameID: {$nameId}, format: {$nameIdFormat}");
             
             // Set RelayState to SLS endpoint if not provided
             if (empty($returnTo)) {
