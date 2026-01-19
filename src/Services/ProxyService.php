@@ -104,6 +104,21 @@ class ProxyService
     /**
      * Forward to upstream using custom SAML handler
      */
+    protected function forwardToUpstreamWithCustomHandler(string $proxyRelayState): void
+    {
+        $upstreamConfig = $this->getUpstreamSamlConfig();
+        $samlHandler = new SamlHandler($upstreamConfig);
+
+        try {
+            $authUrl = $samlHandler->buildAuthRequest($proxyRelayState);
+            Log::info('UW ADFS Proxy: Forwarding to upstream ADFS');
+            header('Location: ' . $authUrl);
+            exit();
+        } catch (\Exception $e) {
+            Log::error('UW ADFS Proxy: Failed to forward to upstream', ['error' => $e->getMessage()]);
+            throw $e;
+        }
+    }
 
     /**
      * Handle response from upstream ADFS and forward to client
