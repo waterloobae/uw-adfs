@@ -390,25 +390,27 @@ class AdfsService
      * Simple logout - just redirect to ADFS without sending LogoutRequest
      * 
      * This is useful for ADFS environments that don't support SP-initiated logout.
-     * It clears the local session and redirects to ADFS base URL.
+     * It clears the local session and redirects to ADFS logout page.
      * 
      * @return string ADFS logout URL
      */
     public function simpleLogout(): string
     {
         try {
-            Log::info("Initiating simple SAML logout (no LogoutRequest, no parameters)");
+            Log::info("Initiating simple SAML logout (no LogoutRequest)");
             
             $samlConfig = $this->buildSamlConfig();
+            $logoutUrl = $samlConfig['idp']['singleLogoutService']['url'] ?? '';
             
-            // Just use the base ADFS URL without any logout-specific parameters
-            // This lets the user manually sign out or ADFS will handle it
-            $baseUrl = $samlConfig['idp']['singleSignOnService']['url'] ?? '';
+            // Add WS-Federation signout parameters for ADFS
+            // wa=wsignout1.0 tells ADFS to sign out
+            // wreply tells ADFS where to redirect after logout
+            if (!empty($logoutUrl)) {
+                $logoutUrl = rtrim($logoutUrl, '/');
+                $logoutUrl .= '?wa=wsignout1.0&wreply=' . urlencode(config('app.url'));
+            }
             
-            // Remove /ls/ from the end if present to get base ADFS URL
-            $logoutUrl = rtrim(str_replace('/adfs/ls/', '/adfs/', $baseUrl), '/');
-            
-            Log::info("Simple logout URL (base ADFS): " . $logoutUrl);
+            Log::info("Simple logout URL: " . $logoutUrl);
             return $logoutUrl;
             
         } catch (\Exception $e) {
