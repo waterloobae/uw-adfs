@@ -115,7 +115,8 @@ class AdfsController extends Controller
         $nameId = $samlSession['nameId'] ?? null;
         $nameIdFormat = $samlSession['nameIdFormat'] ?? null;
         $sessionIndex = $samlSession['sessionIndex'] ?? null;
-        $returnTo = $request->get('returnTo', config('app.url'));
+        // RelayState should be the SLS endpoint, not the base URL
+        $returnTo = $request->get('returnTo', config('app.url') . '/saml/sls');
         
         // Get email from authenticated user
         $email = Auth::user()?->email ?? null;
