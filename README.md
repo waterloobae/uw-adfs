@@ -1,6 +1,6 @@
 # University of Waterloo ADFS SAML Authentication Package
 
-This Laravel package provides SAML authentication integration with University of Waterloo's Active Directory Federation Services (ADFS). It includes a **built-in SAML 2.0 handler** that requires no external dependencies, with optional support for the OneLogin library.
+This Laravel package provides SAML authentication integration with University of Waterloo's Active Directory Federation Services (ADFS). It includes a **built-in SAML 2.0 handler** that requires no external dependencies.
 
 ## CSRF exception
 Insert following codes in /bootstrap/app.php to avoid 419 Page Expired error
@@ -36,7 +36,6 @@ Insert following codes in /bootstrap/app.php to avoid 419 Page Expired error
 
 - PHP 8.1 or higher (with OpenSSL extension for cryptography)
 - Laravel 10.0 or higher
-- (Optional) OneLogin SAML PHP library (^4.1) - for legacy compatibility or advanced features
 
 ## Installation
 
@@ -58,13 +57,9 @@ php artisan vendor:publish --tag=uw-adfs-config
 php artisan vendor:publish --tag=uw-adfs-metadata
 ```
 
-## SAML Implementation Options
+## SAML Implementation
 
-This package includes a **built-in SAML 2.0 handler** that requires no external dependencies. Optionally, you can use the OneLogin library for additional features or legacy compatibility.
-
-### Built-in SAML Handler (Default - Recommended)
-
-The package uses a custom SAML 2.0 implementation by default that:
+This package uses a **built-in SAML 2.0 handler** that:
 - Works out-of-the-box with no additional dependencies
 - Uses only PHP's built-in OpenSSL extension for cryptography
 - Includes XML digital signatures (RSA-SHA256) for ADFS compliance
@@ -74,58 +69,9 @@ The package uses a custom SAML 2.0 implementation by default that:
 
 **No configuration needed** - it automatically uses the built-in handler.
 
-### Using OneLogin (Optional)
-
-If you prefer to use the OneLogin library for legacy reasons or additional features:
-
-1. Install the OneLogin library:
-
-```bash
-composer require onelogin/php-saml:^4.1
-```
-
-2. Enable OneLogin in your `.env` file:
-
-```env
-# Force use of OneLogin library instead of built-in handler
-UW_ADFS_USE_ONELOGIN=true
-```
-
-The package will automatically detect and use OneLogin if it's installed and configured.
-
-### Migration from OneLogin-Only Version
-
-If you're upgrading from an older version that required OneLogin:
-
-1. The package now works without OneLogin installed
-2. Existing OneLogin configurations will continue to work
-3. To use the built-in handler instead:
-   - Ensure OneLogin is NOT in your composer.json `require` section
-   - Remove `UW_ADFS_USE_ONELOGIN=true` from `.env` (if set)
-   - The package will automatically use the built-in handler
-
-### Implementation Comparison
-
-| Feature | Built-in Handler | OneLogin Library |
-|---------|------------------|------------------|
-| External dependencies | None | 1 package |
-| SAML 2.0 Support | ✓ Full | ✓ Full |
-| XML Signatures | ✓ RSA-SHA256 | ✓ RSA-SHA256 |
-| Single Sign-On (SSO) | ✓ Yes | ✓ Yes |
-| Single Logout (SLO) | ✓ Yes | ✓ Yes |
-| Metadata Caching | ✓ Yes | ✗ No |
-| Automatic Detection | ✓ Yes | ✓ Yes |
-| Zero-Dependency Deployments | ✓ Yes | ✗ No |
-
-4. Configure your environment variables in `.env`:
-
 ```env
 # ADFS Environment (production or development)
 UW_ADFS_ENVIRONMENT=development
-
-# SAML Implementation Selection (optional)
-# Set to true to force OneLogin library, false or unset for built-in handler (default)
-UW_ADFS_USE_ONELOGIN=false
 
 # Service Provider Configuration
 UW_ADFS_SP_ENTITY_ID=https://your-app.example.com
@@ -153,7 +99,6 @@ UW_ADFS_BLOCKED_GROUPS="Suspended Accounts,Guest Users"
 UW_ADFS_ACCESS_DENIED_MESSAGE="Access denied. Contact administrator."
 
 # User Model (optional, defaults to App\Models\User)
-UW_ADFS_USER_MODEL=App\Models\User
 UW_ADFS_USER_MODEL=App\Models\User
 ```
 
