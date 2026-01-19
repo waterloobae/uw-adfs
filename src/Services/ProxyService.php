@@ -106,12 +106,32 @@ class ProxyService
      */
     protected function forwardToUpstreamWithCustomHandler(string $proxyRelayState): void
     {
+        Log::info('Building upstream SAML config for proxy forwarding');
+        
         $upstreamConfig = $this->getUpstreamSamlConfig();
+        
+        Log::debug('Upstream config built', [
+            'sp_entity_id' => $upstreamConfig['sp']['entityId'] ?? 'missing',
+            'sp_acs_url' => $upstreamConfig['sp']['assertionConsumerService']['url'] ?? 'missing',
+            'idp_sso_url' => $upstreamConfig['idp'][$upstreamConfig['environment']]['singleSignOnService']['url'] ?? 'missing',
+            'environment' => $upstreamConfig['environment'],
+        ]);
+        
         $samlHandler = new SamlHandler($upstreamConfig);
 
         try {
+            Log::info('Building AuthnRequest with proxy RelayState', [
+                'relay_state_length' => strlen($proxyRelayState),
+                'relay_state_preview' => substr($proxyRelayState, 0, 50) . '...',
+            ]);
+            
             $authUrl = $samlHandler->buildAuthRequest($proxyRelayState);
-            Log::info('UW ADFS Proxy: Forwarding to upstream ADFS');
+            
+            Log::info('UW ADFS Proxy: Forwarding to upstream ADFS', [
+                'auth_url_length' => strlen($authUrl),
+                'auth_url_preview' => substr($authUrl, 0, 150) . '...',
+            ]);
+            
             header('Location: ' . $authUrl);
             exit();
         } catch (\Exception $e) {

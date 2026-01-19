@@ -24,13 +24,25 @@ class ProxyController extends Controller
      */
     public function sso(Request $request)
     {
+        Log::info('=== PROXY SSO ENDPOINT CALLED ===', [
+            'method' => $request->method(),
+            'url' => $request->fullUrl(),
+            'has_saml_request' => $request->has('SAMLRequest'),
+        ]);
+        
         if (!$this->proxyService->isEnabled()) {
+            Log::error('Proxy mode not enabled');
             abort(404, 'Proxy mode not enabled');
         }
 
         try {
             // Parse incoming SAML request
             $samlRequest = $this->parseSamlRequest($request);
+            
+            Log::info('Parsed SAML request from client', [
+                'issuer' => $samlRequest['issuer'] ?? 'unknown',
+                'request_id' => $samlRequest['id'] ?? 'unknown',
+            ]);
             
             // Handle client request and store context
             $clientContext = $this->proxyService->handleClientRequest($samlRequest);
@@ -39,6 +51,10 @@ class ProxyController extends Controller
             $this->proxyService->forwardToUpstream($clientContext);
             
         } catch (\Exception $e) {
+            Log::error('Proxy SSO failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             return response()->json([
                 'error' => 'Proxy SSO failed',
                 'message' => $e->getMessage()
