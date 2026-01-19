@@ -34,8 +34,8 @@ Route::group([
     // SAML Metadata
     Route::get('/metadata', [AdfsController::class, 'metadata'])->name('saml.metadata');
     
-   // Debug route for SAML attributes (remove in production)
-    Route::get('/attributes', [AdfsController::class, 'attributes'])->name('saml.attributes');
+   // Debug route for SAML attributes (disabled)
+    // Route::get('/attributes', [AdfsController::class, 'attributes'])->name('saml.attributes');
     
     // Proxy routes (when acting as SAML proxy/staging AP)
     Route::prefix('proxy')->name('saml.proxy.')->group(function () {
