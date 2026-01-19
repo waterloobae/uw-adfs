@@ -54,6 +54,19 @@ return [
             'metadata_url' => 'https://adfstest.uwaterloo.ca/FederationMetadata/2007-06/FederationMetadata.xml',
             'metadata_file' => storage_path('app/saml/dev.xml'), // Fallback local file
         ],
+        'proxy' => [
+            'entityId' => env('UW_ADFS_PROXY_ENTITY_ID', 'https://sigma-dev.cemc.uwaterloo.ca/proxy'),
+            'singleSignOnService' => [
+                'url' => env('UW_ADFS_PROXY_SSO_URL', 'https://sigma-dev.cemc.uwaterloo.ca/saml/proxy/sso'),
+                'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
+            ],
+            'singleLogoutService' => [
+                'url' => env('UW_ADFS_PROXY_SLS_URL', 'https://sigma-dev.cemc.uwaterloo.ca/saml/proxy/sls'),
+                'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
+            ],
+            'metadata_url' => env('UW_ADFS_PROXY_METADATA_URL', 'https://sigma-dev.cemc.uwaterloo.ca/saml/proxy/metadata'),
+            'metadata_file' => storage_path('app/saml/proxy.xml'), // Fallback local file
+        ],
     ],
 
     'security' => [
