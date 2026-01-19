@@ -282,18 +282,40 @@ class ProxyService
     {
         $baseConfig = $this->adfsService->buildSamlConfig();
         $upstreamConfig = $this->config['upstream'] ?? [];
+        $environment = config('uw-adfs.environment', 'development');
 
+        // Build config in the format SamlHandler expects
         return [
-            'entityId' => config('app.url') . '/proxy',
-            'acsUrl' => config('app.url') . '/saml/proxy/acs',
-            'slsUrl' => config('app.url') . '/saml/proxy/sls',
-            'x509Cert' => config('uw-adfs.sp.x509cert', ''),
-            'privateKey' => config('uw-adfs.sp.private_key', ''),
-            'environment' => config('uw-adfs.environment', 'development'),
-            'idpEntityId' => $upstreamConfig['idp_entity_id'] ?? $baseConfig['idp_entity_id'] ?? '',
-            'idpSsoUrl' => $upstreamConfig['sso_url'] ?? $baseConfig['idp_sso_url'] ?? '',
-            'idpSlsUrl' => $upstreamConfig['sls_url'] ?? $baseConfig['idp_sls_url'] ?? '',
-            'idpCertificate' => $upstreamConfig['idp_certificate'] ?? $baseConfig['idp_certificate'] ?? '',
+            'sp' => [
+                'entityId' => config('app.url') . '/proxy',
+                'assertionConsumerService' => [
+                    'url' => config('app.url') . '/saml/proxy/acs',
+                    'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST',
+                ],
+                'singleLogoutService' => [
+                    'url' => config('app.url') . '/saml/proxy/sls',
+                    'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
+                ],
+                'NameIDFormat' => 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified',
+                'x509cert' => config('uw-adfs.sp.x509cert', ''),
+                'privateKey' => config('uw-adfs.sp.privateKey', ''),
+            ],
+            'idp' => [
+                $environment => [
+                    'entityId' => $upstreamConfig['idp_entity_id'] ?? $baseConfig['idp'][$environment]['entityId'] ?? '',
+                    'singleSignOnService' => [
+                        'url' => $upstreamConfig['sso_url'] ?? $baseConfig['idp'][$environment]['singleSignOnService']['url'] ?? '',
+                        'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
+                    ],
+                    'singleLogoutService' => [
+                        'url' => $upstreamConfig['sls_url'] ?? $baseConfig['idp'][$environment]['singleLogoutService']['url'] ?? '',
+                        'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
+                    ],
+                    'x509cert' => $upstreamConfig['idp_certificate'] ?? $baseConfig['idp'][$environment]['x509cert'] ?? '',
+                ],
+            ],
+            'environment' => $environment,
+            'security' => $baseConfig['security'] ?? [],
         ];
     }
 
