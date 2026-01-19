@@ -353,6 +353,13 @@ class AdfsService
             $nameIdFormat = $nameIdFormat ?? 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress';
             Log::info("Using NameID format: {$nameIdFormat}");
             
+            // Set RelayState to SLS endpoint if not provided
+            if (empty($returnTo)) {
+                $samlConfig = $this->buildSamlConfig();
+                $returnTo = $samlConfig['sp']['singleLogoutService']['url'] ?? config('app.url') . '/saml/sls';
+                Log::info("Using default RelayState (SLS endpoint): {$returnTo}");
+            }
+            
             // Build logout request using custom SAML handler
             $logoutUrl = $this->samlHandler->buildLogoutRequest($nameId, $sessionIndex, $returnTo, $nameIdFormat);
             
