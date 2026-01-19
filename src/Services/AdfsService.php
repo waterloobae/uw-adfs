@@ -335,11 +335,12 @@ class AdfsService
             Log::info("Initiating SAML logout");
             Log::info("Logout session data - NameID: " . ($nameId ? $nameId : 'NULL/EMPTY') . ", SessionIndex: " . ($sessionIndex ? $sessionIndex : 'NULL/EMPTY') . ", NameIDFormat: " . ($nameIdFormat ? $nameIdFormat : 'NULL/EMPTY') . ", Email: " . ($email ? $email : 'NULL/EMPTY'));
             
+            $samlConfig = $this->buildSamlConfig();
+            
             // Validate session data
             if (empty($nameId) || empty($sessionIndex)) {
                 Log::error("Missing critical logout data - NameID: " . ($nameId ? 'provided' : 'NULL') . ", SessionIndex: " . ($sessionIndex ? 'provided' : 'NULL'));
-                // Fall back to IdP SLS URL
-                $samlConfig = $this->buildSamlConfig();
+                Log::warning("Falling back to simple logout");
                 return $samlConfig['idp']['singleLogoutService']['url'] ?? '';
             }
             
@@ -382,6 +383,36 @@ class AdfsService
             $samlConfig = $this->buildSamlConfig();
             $idpSls = $samlConfig['idp']['singleLogoutService']['url'] ?? '';
             return $idpSls;
+        }
+    }
+    
+    /**
+     * Simple logout - just redirect to ADFS without sending LogoutRequest
+     * 
+     * This is useful for ADFS environments that don't support SP-initiated logout.
+     * It clears the local session and redirects to ADFS logout page.
+     * 
+     * @return string ADFS logout URL
+     */
+    public function simpleLogout(): string
+    {
+        try {
+            Log::info("Initiating simple SAML logout (no LogoutRequest)");
+            
+            $samlConfig = $this->buildSamlConfig();
+            $logoutUrl = $samlConfig['idp']['singleLogoutService']['url'] ?? '';
+            
+            // Add WS-Federation signout parameter for ADFS
+            if (!empty($logoutUrl)) {
+                $logoutUrl .= (strpos($logoutUrl, '?') === false ? '?' : '&') . 'wa=wsignout1.0';
+            }
+            
+            Log::info("Simple logout URL: " . $logoutUrl);
+            return $logoutUrl;
+            
+        } catch (\Exception $e) {
+            Log::error("Simple logout generation failed: " . $e->getMessage());
+            return config('app.url');
         }
     }
     
