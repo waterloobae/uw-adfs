@@ -73,10 +73,13 @@ class ProxyService
 
         $sessionKey = 'proxy_client_' . $samlRequest['id'];
         Session::put($sessionKey, $clientContext);
+        Session::save(); // Force session save before redirect
 
         Log::info('UW ADFS Proxy: Received client request', [
             'client_entity_id' => $samlRequest['issuer'],
-            'request_id' => $samlRequest['id']
+            'request_id' => $samlRequest['id'],
+            'session_key' => $sessionKey,
+            'session_id' => Session::getId()
         ]);
 
         return $clientContext;
@@ -198,6 +201,14 @@ class ProxyService
         $clientRequestId = $proxyContext['client_request_id'];
         $sessionKey = 'proxy_client_' . $clientRequestId;
         $clientContext = Session::get($sessionKey);
+
+        Log::info('UW ADFS Proxy: Retrieving client context', [
+            'client_request_id' => $clientRequestId,
+            'session_key' => $sessionKey,
+            'session_id' => Session::getId(),
+            'context_found' => !empty($clientContext),
+            'all_session_keys' => array_keys(Session::all())
+        ]);
 
         if (!$clientContext) {
             throw new \Exception('Client context not found for request: ' . $clientRequestId);
