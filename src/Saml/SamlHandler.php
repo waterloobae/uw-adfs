@@ -153,16 +153,15 @@ XML;
 
             $requestId = $this->generateId();
             $issueInstant = $this->getIssueInstant();
-
-            $spNameQualifier = $spConfig['entityId'];
             
             // Build NameID element with or without Format attribute
             // CRITICAL: Format must match exactly what ADFS sent during login
+            // Note: SPNameQualifier is omitted as some ADFS configurations reject it (MSIS7054)
             $nameIdXml = '<saml:NameID';
             if ($nameIdFormat) {
                 $nameIdXml .= ' Format="' . htmlspecialchars($nameIdFormat, ENT_XML1, 'UTF-8') . '"';
             }
-            $nameIdXml .= ' SPNameQualifier="' . htmlspecialchars($spNameQualifier, ENT_XML1, 'UTF-8') . '">';
+            $nameIdXml .= '>';
             $nameIdXml .= htmlspecialchars($nameId, ENT_XML1, 'UTF-8');
             $nameIdXml .= '</saml:NameID>';
 
