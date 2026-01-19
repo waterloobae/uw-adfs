@@ -3,78 +3,32 @@
 namespace WaterlooBae\UwAdfs\Services;
 
 use Exception;
+use OneLogin\Saml2\Auth;
+use OneLogin\Saml2\Settings;
+use OneLogin\Saml2\Utils;
 use Illuminate\Support\Facades\Auth as LaravelAuth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response;
-use WaterlooBae\UwAdfs\Saml\SamlHandler;
 
-/**
- * ADFS Service - Handles SAML integration
- * 
- * This service can work with either:
- * 1. Custom SAML Handler (default, no external dependencies)
- * 2. OneLogin SAML Library (optional, for backward compatibility)
- */
 class AdfsService
 {
     protected array $config;
-    protected SamlHandler $samlHandler;
-    protected ?object $oneLoginAuth = null;
-    protected bool $useOneLogin = false;
+    protected Auth $samlAuth;
 
     public function __construct(array $config)
     {
         $this->config = $config;
-        $this->initializeSaml();
+        $this->initializeSamlAuth();
     }
 
     /**
-     * Initialize SAML - use custom handler or OneLogin
+     * Initialize SAML Auth instance
      */
-    protected function initializeSaml(): void
+    protected function initializeSamlAuth(): void
     {
-        // Check if OneLogin is available and configured
-        if ($this->shouldUseOneLogin()) {
-            $this->useOneLogin = true;
-            $this->initializeOneLogin();
-        } else {
-            // Use custom SAML handler
-            $this->samlHandler = new SamlHandler($this->config);
-        }
-    }
-
-    /**
-     * Check if OneLogin should be used
-     */
-    protected function shouldUseOneLogin(): bool
-    {
-        // Check if OneLogin is available
-        if (!class_exists('OneLogin\Saml2\Auth')) {
-            return false;
-        }
-
-        // Check environment variable or config
-        if (env('UW_ADFS_USE_ONELOGIN') === 'false') {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Initialize OneLogin (for backward compatibility)
-     */
-    protected function initializeOneLogin(): void
-    {
-        try {
-            $samlConfig = $this->buildSamlConfig();
-            $this->oneLoginAuth = new \OneLogin\Saml2\Auth($samlConfig);
-            Log::info("Using OneLogin SAML library");
-        } catch (Exception $e) {
-            Log::warning("Failed to initialize OneLogin, falling back to custom SAML: " . $e->getMessage());
-            $this->useOneLogin = false;
-            $this->samlHandler = new SamlHandler($this->config);
-        }
+        $samlConfig = $this->buildSamlConfig();
+        $this->samlAuth = new Auth($samlConfig);
     }
 
     /**
@@ -278,17 +232,7 @@ class AdfsService
      */
     public function login(?string $returnTo = null): void
     {
-        try {
-            if ($this->useOneLogin) {
-                $this->oneLoginAuth->login($returnTo);
-            } else {
-                $url = $this->samlHandler->buildAuthRequest($returnTo);
-                header('Location: ' . $url);
-            }
-        } catch (Exception $e) {
-            Log::error("Login initiation failed: " . $e->getMessage());
-            throw $e;
-        }
+        $this->samlAuth->login($returnTo);
     }
 
     /**
