@@ -343,12 +343,23 @@ class AdfsService
                 return $samlConfig['idp']['singleLogoutService']['url'] ?? '';
             }
             
-            // Use the NameID format from session, or default to unspecified
+            // Use the exact NameID format from the login session
+            // CRITICAL: Must match what ADFS sent during login, otherwise logout will fail with MSIS7054
             if (empty($nameIdFormat)) {
-                $nameIdFormat = 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified';
-                Log::info("No NameIDFormat provided, defaulting to unspecified");
+                // If no format was stored, try to infer from NameID value
+                // ADFS typically uses windows-domain-qualified-name for userids
+                if (strpos($nameId, '@') === false && strpos($nameId, '\\') === false) {
+                    // Plain userid without domain - likely windows-domain-qualified-name
+                    $nameIdFormat = 'urn:oasis:names:tc:SAML:1.1:nameid-format:WindowsDomainQualifiedName';
+                    Log::info("Inferring NameIDFormat as WindowsDomainQualifiedName based on NameID value");
+                } else {
+                    // Has @ or \ - let ADFS determine
+                    $nameIdFormat = null;
+                    Log::info("NameIDFormat not stored and cannot infer - will omit Format attribute");
+                }
             }
-            Log::info("Using NameID: {$nameId}, format: {$nameIdFormat}");
+            
+            Log::info("Using NameID: {$nameId}" . ($nameIdFormat ? ", format: {$nameIdFormat}" : " (no format)"));
             
             // Set RelayState to SLS endpoint if not provided
             if (empty($returnTo)) {

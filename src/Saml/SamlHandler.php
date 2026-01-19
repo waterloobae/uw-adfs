@@ -154,8 +154,17 @@ XML;
             $requestId = $this->generateId();
             $issueInstant = $this->getIssueInstant();
 
-            $nameIdFormat = $nameIdFormat ?: 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified';
             $spNameQualifier = $spConfig['entityId'];
+            
+            // Build NameID element with or without Format attribute
+            // CRITICAL: Format must match exactly what ADFS sent during login
+            $nameIdXml = '<saml:NameID';
+            if ($nameIdFormat) {
+                $nameIdXml .= ' Format="' . htmlspecialchars($nameIdFormat, ENT_XML1, 'UTF-8') . '"';
+            }
+            $nameIdXml .= ' SPNameQualifier="' . htmlspecialchars($spNameQualifier, ENT_XML1, 'UTF-8') . '">';
+            $nameIdXml .= htmlspecialchars($nameId, ENT_XML1, 'UTF-8');
+            $nameIdXml .= '</saml:NameID>';
 
             $xml = <<<XML
 <?xml version="1.0" encoding="UTF-8"?>
@@ -168,7 +177,7 @@ XML;
     IssueInstant="$issueInstant"
     Destination="{$idpConfig['singleLogoutService']['url']}">
     <saml:Issuer>{$spConfig['entityId']}</saml:Issuer>
-    <saml:NameID Format="$nameIdFormat" SPNameQualifier="$spNameQualifier">$nameId</saml:NameID>
+    $nameIdXml
     <samlp:SessionIndex>$sessionIndex</samlp:SessionIndex>
 </samlp:LogoutRequest>
 XML;
