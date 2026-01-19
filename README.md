@@ -19,8 +19,12 @@ Insert following codes in /bootstrap/app.php to avoid 419 Page Expired error
 
 - ✨ **No external SAML dependencies** - Built-in SAML 2.0 implementation using only PHP stdlib
 - **SAML 2.0 authentication** with UW ADFS (with optional OneLogin library support)
+- **ForceAuthn enabled** - Prevents automatic re-authentication after logout (v1.5.12+)
 - **Automatic online metadata fetching** with caching and fallback
 - **Advanced access control** with department, group, and whitelist filtering
+- **SAML Proxy mode** - Act as intermediary for staging environments (v1.5.17+)
+- **Session persistence** - Robust session handling for proxy scenarios (v1.5.19+)
+- **Flexible logout options** - Full ADFS logout or app-only session clearing (v1.5.21+)
 - Support for both production and development environments
 - Automatic user creation and updates
 - Easy-to-use middleware for route protection
@@ -30,7 +34,6 @@ Insert following codes in /bootstrap/app.php to avoid 419 Page Expired error
 - Comprehensive logging and access decision tracking
 - Custom access denied pages with detailed information
 - XML digital signatures (RSA-SHA256) for ADFS compliance
-- Support for proxy authentication scenarios
 
 ## Requirements
 
@@ -204,11 +207,21 @@ Configure how SAML attributes map to your user model in `config/uw-adfs.php`:
 <a href="{{ route('saml.login') }}">Login with UW ADFS</a>
 ```
 
-2. **Logout Link**: Logout from both your app and ADFS:
+2. **Logout Options**:
 
 ```php
-<a href="{{ route('saml.logout') }}">Logout</a>
+<!-- Full SAML logout (logs out from both app and ADFS) -->
+<a href="{{ route('saml.logout') }}">Logout from ADFS</a>
+
+<!-- App-only logout (clears local session, keeps ADFS session active) -->
+<a href="{{ route('saml.logout.app') }}">Logout from App</a>
 ```
+
+**Important Authentication Behavior:**
+- ADFS uses **ForceAuthn** to prevent automatic re-authentication
+- After logout, users will be prompted to enter credentials again on next login
+- This prevents the "back button auto-login" issue where users could bypass logout
+- Use `/saml/logout/app` for quick session clearing without ADFS interaction
 
 ### Route Protection
 
@@ -255,13 +268,20 @@ $hasAccess = UwAdfs::userHasGroup($samlSession['attributes'], 'Required Group Na
 
 The package registers the following routes:
 
-- `GET /saml/login` - Initiate SAML login
+- `GET /saml/login` - Initiate SAML login (with ForceAuthn to prevent auto re-authentication)
 - `POST /saml/acs` - SAML Assertion Consumer Service (includes access control)
 - `GET|POST /saml/sls` - SAML Single Logout Service
-- `GET|POST /saml/logout` - Initiate SAML logout
+- `GET|POST /saml/logout` - Initiate SAML logout (full logout from ADFS)
+- `GET|POST /saml/logout/app` - App-only logout (local session only, no ADFS interaction)
 - `GET /saml/metadata` - SP metadata (for ADFS configuration)
-- `GET /saml/attributes` - Debug route to view SAML attributes
 - `GET /access-denied` - Access denied page with detailed information
+
+**Proxy Routes** (when `UW_ADFS_PROXY_ENABLED=true`):
+- `GET|POST /saml/proxy/sso` - Proxy SSO endpoint for client applications
+- `POST /saml/proxy/acs` - Proxy ACS endpoint (receives ADFS responses)
+- `GET|POST /saml/proxy/sls` - Proxy logout endpoint
+- `GET /saml/proxy/metadata` - Proxy metadata for client applications
+- `GET /saml/proxy/status` - Proxy health and configuration status
 
 ## ADFS Configuration
 
@@ -281,33 +301,7 @@ Route::group(['middleware' => ['adfs.group:Faculty']], function () {
 });
 ```
 
-## Troubleshooting
-
-### Debug SAML Attributes
-
-Visit `/saml/attributes` (when logged in) to see available SAML attributes and session data.
-
-### Access Control Issues
-
-1. **Access Denied Unexpectedly**: Check Laravel logs for access control decisions
-2. **Department Not Recognized**: Verify department attribute is being sent by ADFS
-3. **Groups Not Working**: Confirm group attribute mapping in configuration
-4. **Whitelist Not Working**: Ensure email addresses match exactly (case-insensitive)
-
-### Development Issues
-
-1. **Mock Login Not Working**: Ensure you're in `local` or `development` environment
-2. **ngrok Issues**: Check if tunnel is active and URL is updated in config
-3. **ADFS Whitelist**: Contact ADFS admin to allow your ngrok subdomain
-
-### Metadata Issues
-
-If you encounter metadata-related issues:
-
-1. **Check metadata cache**: Use `php artisan uw-adfs:refresh-metadata --clear-cache`
-2. **Verify connectivity**: Ensure your server can reach UW ADFS endpoints
-3. **Check logs**: Review Laravel logs for metadata fetch errors
-4. **Fallback verification**: Confirm local XML files exist in `storage/app/saml/`
+### Troubleshooting
 
 ### Common Issues
 
@@ -316,21 +310,44 @@ If you encounter metadata-related issues:
 3. **URL Mismatch**: Ensure the URLs in your configuration match exactly with what's configured in ADFS
 4. **Network Issues**: Check firewall rules if metadata fetching fails
 5. **Cache Problems**: Clear metadata cache if you see stale certificate errors
-6. **Proxy Issues**: When using proxy mode, check proxy status and logs
 
-   ```bash
-   # Check proxy status
-   curl https://your-app.uwaterloo.ca/saml/proxy/status
-   
-   # Check proxy logs
-   tail -f storage/logs/laravel.log | grep "UW ADFS Proxy"
-   ```
+### Proxy-Specific Troubleshooting
 
-   Common proxy issues:
-   - **Missing Client Context**: Session data lost between request and response
-   - **Upstream Timeout**: UW ADFS taking too long to respond
-   - **Attribute Filtering**: Required attributes being filtered out
-   - **Invalid Client Requests**: Malformed SAML requests from client apps">
+When using proxy mode, check proxy status and logs:
+
+```bash
+# Check proxy status
+curl https://your-proxy.uwaterloo.ca/saml/proxy/status
+
+# Monitor proxy logs
+tail -f storage/logs/laravel.log | grep "UW ADFS Proxy"
+```
+
+**Common Proxy Issues:**
+
+1. **Missing Client Context / Session Lost**
+   - **Symptom**: "Client context not found for request" error
+   - **Cause**: Session data not persisting between proxy SSO and ACS calls
+   - **Solution**: Ensure session driver supports cross-request persistence (database, redis recommended)
+   - **Fix**: Package automatically calls `Session::save()` after storing client context
+
+2. **Client App Using Wrong Endpoints**
+   - **Symptom**: Client app hits `/saml/proxy/acs` instead of `/saml/acs`
+   - **Cause**: Client has `UW_ADFS_PROXY_ENABLED=true` incorrectly set
+   - **Solution**: Client apps should use `UW_ADFS_ENVIRONMENT=proxy` with `UW_ADFS_PROXY_ENABLED=false`
+
+3. **Invalid Proxy Relay State**
+   - **Symptom**: "Invalid proxy relay state - missing proxy flag" error
+   - **Cause**: Client sending wrong entity ID or ACS URL in AuthnRequest
+   - **Solution**: Verify client's `UW_ADFS_SP_ENTITY_ID` and `UW_ADFS_SP_ACS_URL` are correctly set
+
+4. **ForceAuthn Preventing Auto Re-authentication**
+   - **Behavior**: Users prompted for credentials even with active ADFS session
+   - **Explanation**: This is intentional to prevent "back button" auto-login after logout
+   - **Solution**: Working as designed; use app-only logout (`/saml/logout/app`) for quick session clearing
+
+5. **Upstream Timeout**: UW ADFS taking too long to respond (increase timeout in config)
+6. **Attribute Filtering**: Required attributes being filtered out (check filter configuration)">
 
 ## Access Control & User Filtering
 
@@ -470,14 +487,44 @@ class DashboardController extends Controller
 
 ## SAML Proxy/Staging AP Support
 
-The package now supports **SAML Proxy mode** (also known as Staging Authentication Proxy), allowing your application to act as an intermediary between client applications and UW ADFS. This is particularly useful for:
+The package supports **SAML Proxy mode** (also known as Staging Authentication Proxy), allowing your application to act as an intermediary between client applications and UW ADFS. This is particularly useful for:
 
 - **Staging Environments**: Provide ADFS authentication for development/staging without direct ADFS integration
 - **Multi-Tier Architectures**: Centralize authentication through a proxy layer
 - **Attribute Filtering**: Control which SAML attributes are passed to downstream applications
 - **Access Control Layering**: Apply additional access control before forwarding authentication
 
-### Proxy Configuration
+### Quick Start: Using a Proxy Server
+
+If you have a staging/proxy server already set up, configure your client application:
+
+```env
+# Client app configuration (e.g., local development)
+APP_URL=http://localhost:8000
+UW_ADFS_ENVIRONMENT=proxy
+UW_ADFS_SP_ENTITY_ID=http://localhost:8000
+UW_ADFS_SP_ACS_URL=http://localhost:8000/saml/acs
+UW_ADFS_SP_SLS_URL=http://localhost:8000/saml/sls
+
+# Proxy server details (configured via 'proxy' IdP option)
+UW_ADFS_PROXY_ENTITY_ID=https://proxy-server.uwaterloo.ca/proxy
+UW_ADFS_PROXY_SSO_URL=https://proxy-server.uwaterloo.ca/saml/proxy/sso
+UW_ADFS_PROXY_SLS_URL=https://proxy-server.uwaterloo.ca/saml/proxy/sls
+UW_ADFS_PROXY_METADATA_URL=https://proxy-server.uwaterloo.ca/saml/proxy/metadata
+
+# IMPORTANT: Client apps should NOT enable proxy mode
+UW_ADFS_PROXY_ENABLED=false
+```
+
+**Authentication Flow:**
+1. Client app → Proxy SSO endpoint
+2. Proxy → UW ADFS (authentication)
+3. ADFS → Proxy (response with attributes)
+4. Proxy → Client app (filtered response)
+
+### Setting Up a Proxy Server
+
+To run your application as a SAML proxy server:
 
 ```env
 # Enable proxy mode
@@ -538,11 +585,30 @@ Client applications should configure their SAML settings to use your proxy:
 
 ## Security Considerations
 
-1. Always use HTTPS in production
-2. Keep your SP private key secure
-3. Regularly update the IdP metadata files
-4. Consider enabling assertion signing in production
-5. Remove or protect the debug `/saml/attributes` route in production
+1. **Always use HTTPS in production** - Required for SAML security
+2. **Keep your SP private key secure** - Never commit to version control
+3. **Regularly update metadata** - Use `php artisan uw-adfs:refresh-metadata`
+4. **Session security** - Use database or redis session driver for proxy mode
+5. **ForceAuthn enabled** - Prevents automatic re-authentication bypass
+6. **Remove debug routes in production** - `/saml/attributes` route is disabled by default (v1.5.20+)
+
+### Security Configuration
+
+The `security` section in `config/uw-adfs.php` has been streamlined to include only actively used settings:
+
+```php
+'security' => [
+    // Active settings
+    'authnRequestsSigned' => false,
+    'logoutRequestSigned' => false,  // ADFS requires unsigned logout requests
+    'logoutResponseSigned' => false,
+    'wantNameId' => true,
+    'wantXMLValidation' => true,
+    
+    // Unused settings are commented out for clarity
+    // See config file for full list of available options
+],
+```
 
 ## License
 
