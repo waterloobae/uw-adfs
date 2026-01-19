@@ -142,7 +142,7 @@ XML;
             $requestId = $this->generateId();
             $issueInstant = $this->getIssueInstant();
 
-            $nameIdFormat = $nameIdFormat ?: 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress';
+            $nameIdFormat = $nameIdFormat ?: 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent';
             $spNameQualifier = $spConfig['entityId'];
 
             $xml = <<<XML

@@ -349,8 +349,11 @@ class AdfsService
                 $nameId = $email;
             }
             
-            // Use emailAddress format for email-based NameID
-            $nameIdFormat = $nameIdFormat ?? 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress';
+            // Use the NameID format from session, or default to persistent
+            if (empty($nameIdFormat)) {
+                $nameIdFormat = 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent';
+                Log::info("No NameIDFormat provided, defaulting to persistent");
+            }
             Log::info("Using NameID format: {$nameIdFormat}");
             
             // Set RelayState to SLS endpoint if not provided
