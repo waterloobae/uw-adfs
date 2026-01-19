@@ -297,46 +297,33 @@ class AdfsService
     public function acs(): array
     {
         Log::info("Processing SAML response");
-        // Log::debug("SAML Auth initialized, checking for response");
-        
-        $this->samlAuth->processResponse();
-        // Log::debug("SAML response processed");
 
-        $errors = $this->samlAuth->getErrors();
-        if (!empty($errors)) {
-            Log::error('SAML Response errors: ' . implode(', ', $errors));
-            Log::error('SAML error reason: ' . $this->samlAuth->getLastErrorReason());
-            // Log::error('Last response XML: ' . $this->samlAuth->getLastResponseXML());
+        try {
+            $samlResponse = $_POST['SAMLResponse'] ?? '';
             
-            // Log detailed status information
-            $responseXml = $this->samlAuth->getLastResponseXML();
-            if (!empty($responseXml)) {
-                // Log::debug("SAML Response XML (first 1000 chars): " . substr($responseXml, 0, 1000));
+            if (empty($samlResponse)) {
+                throw new \Exception('Missing SAML response');
             }
-            
-            throw new \Exception('SAML Response error: ' . implode(', ', $errors));
+
+            $responseData = $this->samlHandler->processSamlResponse($samlResponse);
+
+            if (!$responseData['authenticated']) {
+                throw new \Exception('SAML authentication failed');
+            }
+
+            Log::info("SAML authentication successful");
+
+            return [
+                'authenticated' => true,
+                'attributes' => $responseData['attributes'],
+                'nameId' => $responseData['nameId'],
+                'nameIdFormat' => $responseData['nameIdFormat'] ?? '',
+                'sessionIndex' => $responseData['sessionIndex'] ?? '',
+            ];
+        } catch (\Exception $e) {
+            Log::error("SAML Response processing error: " . $e->getMessage());
+            throw $e;
         }
-
-        // Log::debug("No SAML errors, checking authentication status");
-        
-        if (!$this->samlAuth->isAuthenticated()) {
-            Log::error('User not authenticated after processing response');
-            // Log::debug("SAML Auth session index: " . $this->samlAuth->getSessionIndex());
-            // Log::debug("SAML nameId: " . $this->samlAuth->getNameId());
-            throw new \Exception('SAML authentication failed');
-        }
-
-        Log::info("SAML authentication successful");
-        // Log::debug("User nameId: " . $this->samlAuth->getNameId());
-        // Log::debug("User attributes: " . json_encode($this->samlAuth->getAttributes(), JSON_PRETTY_PRINT));
-
-        return [
-            'authenticated' => true,
-            'attributes' => $this->samlAuth->getAttributes(),
-            'nameId' => $this->samlAuth->getNameId(),
-            'nameIdFormat' => $this->samlAuth->getNameIdFormat(),
-            'sessionIndex' => $this->samlAuth->getSessionIndex(),
-        ];
     }
 
     /**
