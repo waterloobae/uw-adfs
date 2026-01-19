@@ -152,24 +152,41 @@ class AdfsController extends Controller
    }
 
     /**
-     * Handle simple SAML logout (no LogoutRequest, no ADFS redirect)
-     * This bypasses ADFS logout entirely to avoid MSIS7055 errors
+     * Handle simple SAML logout (no LogoutRequest, WS-Federation signout)
+     * Redirects to ADFS which shows "close your browser" message
      */
     public function simpleLogout(Request $request): RedirectResponse
     {
-        Log::info("Simple logout endpoint called (no ADFS redirect)");
+        $user = Auth::user();
+        $email = $user?->email ?? 'unknown';
         
-        // Clear the local session
-        Auth::logout();
+        Log::info("Simple logout initiated for user: {$email}");
+        
+        // Clear SAML session data
         Session::forget('saml_session');
-        Session::invalidate();        
-        Session::regenerateToken();
-        Session::flush();
-            
-        Log::info("Local logout completed (simple mode - no ADFS redirect)");
         
-        // Just redirect back to app without touching ADFS
-        return redirect('/')->with('success', 'Logged out successfully');
+        // Log out from Laravel
+        Auth::logout();
+        
+        // Invalidate the entire session
+        Session::invalidate();
+        
+        // Regenerate session token
+        Session::regenerateToken();
+        
+        // Get ADFS logout URL from config
+        $environment = config('uw-adfs.environment', 'development');
+        $adfsLogoutBaseUrl = config("uw-adfs.idp.{$environment}.singleLogoutService.url");
+        
+        // Construct ADFS logout URL with WS-Federation signout
+        $adfsLogoutUrl = rtrim($adfsLogoutBaseUrl, '/');
+        $adfsLogoutUrl .= '?wa=wsignout1.0&wreply=' . urlencode(config('app.url'));
+        
+        Log::info("User logged out: {$email}");
+        Log::info("Redirecting to ADFS logout: {$adfsLogoutUrl}");
+        
+        // Redirect to ADFS logout endpoint to clear ADFS session
+        return redirect($adfsLogoutUrl);
     }
 
     /**
