@@ -22,7 +22,7 @@ return [
             'url' => env('UW_ADFS_SP_SLS_URL', config('app.url') . '/saml/sls'),
             'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
         ],
-        'NameIDFormat' => 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified',
+        'NameIDFormat' => 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
         'x509cert' => env('UW_ADFS_SP_X509_CERT', ''),
         'privateKey' => env('UW_ADFS_SP_PRIVATE_KEY', ''),
     ],
