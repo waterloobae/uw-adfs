@@ -183,14 +183,19 @@ XML;
 
             Log::debug("Unsigned LogoutRequest XML: " . $xml);
 
-            // Sign the request
-            if ($this->config['security']['logoutRequestSigned'] ?? true) {
+            // Sign the request only if configured
+            $shouldSign = $this->config['security']['logoutRequestSigned'] ?? false;
+            Log::info("LogoutRequest signing config: " . ($shouldSign ? 'ENABLED' : 'DISABLED'));
+            
+            if ($shouldSign) {
                 $xml = $this->signatureHandler->sign(
                     $xml,
                     $this->config['sp']['privateKey'],
                     $requestId
                 );
                 Log::debug("Signed LogoutRequest XML (first 500 chars): " . substr($xml, 0, 500));
+            } else {
+                Log::info("LogoutRequest left UNSIGNED per config");
             }
 
             // Encode for HTTP-Redirect binding (deflate + base64 + urlencode)
