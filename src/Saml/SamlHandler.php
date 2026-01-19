@@ -126,6 +126,7 @@ XML;
     public function buildLogoutRequest(
         ?string $nameId = null,
         ?string $sessionIndex = null,
+        ?string $returnTo = null,
         ?string $nameIdFormat = null
     ): string {
         try {
@@ -142,21 +143,25 @@ XML;
             $issueInstant = $this->getIssueInstant();
 
             $nameIdFormat = $nameIdFormat ?: 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress';
+            $spNameQualifier = $spConfig['entityId'];
 
             $xml = <<<XML
 <?xml version="1.0" encoding="UTF-8"?>
 <samlp:LogoutRequest
     xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     ID="$requestId"
     Version="2.0"
     IssueInstant="$issueInstant"
     Destination="{$idpConfig['singleLogoutService']['url']}">
     <saml:Issuer>{$spConfig['entityId']}</saml:Issuer>
-    <saml:NameID Format="$nameIdFormat">$nameId</saml:NameID>
+    <saml:NameID Format="$nameIdFormat" SPNameQualifier="$spNameQualifier">$nameId</saml:NameID>
     <samlp:SessionIndex>$sessionIndex</samlp:SessionIndex>
 </samlp:LogoutRequest>
 XML;
+
+            Log::debug("Unsigned LogoutRequest XML: " . $xml);
 
             // Sign the request
             if ($this->config['security']['logoutRequestSigned'] ?? true) {
@@ -165,6 +170,7 @@ XML;
                     $this->config['sp']['privateKey'],
                     $requestId
                 );
+                Log::debug("Signed LogoutRequest XML (first 500 chars): " . substr($xml, 0, 500));
             }
 
             // Encode for HTTP-Redirect binding (deflate + base64 + urlencode)
@@ -172,6 +178,12 @@ XML;
             $encoded = base64_encode($deflated);
 
             $url = $idpConfig['singleLogoutService']['url'] . "?SAMLRequest=" . urlencode($encoded);
+            
+            // Add RelayState if provided
+            if ($returnTo) {
+                $url .= "&RelayState=" . urlencode($returnTo);
+                Log::debug("Added RelayState: " . $returnTo);
+            }
 
             Log::debug("LogoutRequest URL built: " . substr($url, 0, 100) . "...");
 
