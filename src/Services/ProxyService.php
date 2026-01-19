@@ -154,10 +154,25 @@ class ProxyService
 
         // Extract relay state to find original client context
         $relayState = $_POST['RelayState'] ?? '';
+        
+        Log::info('UW ADFS Proxy: Processing RelayState', [
+            'relay_state_raw' => $relayState,
+            'relay_state_length' => strlen($relayState)
+        ]);
+        
+        if (empty($relayState)) {
+            throw new \Exception('Missing RelayState from upstream ADFS');
+        }
+        
         $proxyContext = json_decode(base64_decode($relayState), true);
 
         if (!$proxyContext || !isset($proxyContext['proxy'])) {
-            throw new \Exception('Invalid proxy relay state');
+            Log::error('UW ADFS Proxy: Invalid relay state', [
+                'relay_state' => $relayState,
+                'decoded' => base64_decode($relayState),
+                'parsed' => $proxyContext
+            ]);
+            throw new \Exception('Invalid proxy relay state - missing proxy flag in RelayState');
         }
 
         $clientRequestId = $proxyContext['client_request_id'];
