@@ -152,35 +152,6 @@ class AdfsController extends Controller
    }
 
     /**
-     * Handle simple logout - local session clear only
-     * Does not contact ADFS at all to avoid MSIS7055 errors
-     */
-    public function simpleLogout(Request $request): RedirectResponse
-    {
-        $user = Auth::user();
-        $email = $user?->email ?? 'unknown';
-        
-        Log::info("Simple logout initiated for user: {$email}");
-        
-        // Clear SAML session data
-        Session::forget('saml_session');
-        
-        // Log out from Laravel
-        Auth::logout();
-        
-        // Invalidate the entire session
-        Session::invalidate();
-        
-        // Regenerate session token
-        Session::regenerateToken();
-        
-        Log::info("User logged out (local only): {$email}");
-        
-        // Redirect to home - do not contact ADFS
-        return redirect('/')->with('status', 'You have been logged out locally. Please close your browser to complete the logout from ADFS.');
-    }
-
-    /**
      * Handle SAML Single Logout Service
      */
     public function sls(Request $request): void

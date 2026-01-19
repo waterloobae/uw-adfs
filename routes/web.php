@@ -31,10 +31,6 @@ Route::group([
     Route::get('/logout', [AdfsController::class, 'logout'])->name('saml.logout');
     Route::post('/logout', [AdfsController::class, 'logout']);
     
-    // Simple Logout (direct ADFS redirect without LogoutRequest)
-    Route::get('/logout/simple', [AdfsController::class, 'simpleLogout'])->name('saml.logout.simple');
-    Route::post('/logout/simple', [AdfsController::class, 'simpleLogout']);
-    
     // SAML Metadata
     Route::get('/metadata', [AdfsController::class, 'metadata'])->name('saml.metadata');
     
