@@ -5,6 +5,7 @@ namespace WaterlooBae\UwAdfs\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Log;
 use WaterlooBae\UwAdfs\Services\ProxyService;
 use WaterlooBae\UwAdfs\Services\AdfsService;
 
