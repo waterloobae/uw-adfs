@@ -57,25 +57,27 @@ return [
     ],
 
     'security' => [
-        'nameIdEncrypted' => false,
+        // Active settings
         'authnRequestsSigned' => false,
-        'logoutRequestSigned' => false,  // ADFS requires signed logout requests (MSIS7084)
-        'logoutResponseSigned' => false, // ADFS also requires signed logout responses
-        'signMetadata' => false,
-        'wantMessagesSigned' => false,
-        'wantAssertionsSigned' => false,
+        'logoutRequestSigned' => false,  // ADFS requires unsigned logout requests for compatibility
+        'logoutResponseSigned' => false,
         'wantNameId' => true,
-        'wantAssertionsEncrypted' => false,
-        'wantNameIdEncrypted' => false,
-        'requestedAuthnContext' => true,
-        'requestedAuthnContextComparison' => 'exact',
         'wantXMLValidation' => true,
-        'relaxDestinationValidation' => false,
-        'destinationStrictlyMatches' => false,
-        'allowRepeatAttributeName' => false,
-        'rejectUnsolicitedResponsesWithInResponseTo' => false,
-        'signatureAlgorithm' => 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256',
-        'digestAlgorithm' => 'http://www.w3.org/2001/04/xmlenc#sha256',
+        // Unused settings (not implemented in custom SAML handler)
+        // 'nameIdEncrypted' => false,
+        // 'signMetadata' => false,
+        // 'wantMessagesSigned' => false,
+        // 'wantAssertionsSigned' => false,
+        // 'wantAssertionsEncrypted' => false,
+        // 'wantNameIdEncrypted' => false,
+        // 'requestedAuthnContext' => true,
+        // 'requestedAuthnContextComparison' => 'exact',
+        // 'relaxDestinationValidation' => false,
+        // 'destinationStrictlyMatches' => false,
+        // 'allowRepeatAttributeName' => false,
+        // 'rejectUnsolicitedResponsesWithInResponseTo' => false,
+        // 'signatureAlgorithm' => 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256',
+        // 'digestAlgorithm' => 'http://www.w3.org/2001/04/xmlenc#sha256',
     ],
 
     /*
