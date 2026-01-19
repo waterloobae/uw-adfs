@@ -152,6 +152,22 @@ class AdfsController extends Controller
    }
 
     /**
+     * Simple app-only logout (no ADFS logout)
+     */
+    public function logoutApp(): RedirectResponse
+    {
+        Auth::logout();
+        Session::forget('saml_session');
+        Session::invalidate();
+        Session::regenerateToken();
+        Session::flush();
+        
+        Log::info('App-only logout completed');
+        
+        return redirect(config('app.url'));
+    }
+
+    /**
      * Handle SAML Single Logout Service
      */
     public function sls(Request $request): void
