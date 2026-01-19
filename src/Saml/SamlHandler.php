@@ -93,7 +93,8 @@ class SamlHandler
     IssueInstant="$issueInstant"
     Destination="{$idpConfig['singleSignOnService']['url']}"
     AssertionConsumerServiceURL="{$spConfig['assertionConsumerService']['url']}"
-    ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST">
+    ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+    ForceAuthn="true">
     <saml:Issuer>{$spConfig['entityId']}</saml:Issuer>
     $nameIdPolicyXml
 </samlp:AuthnRequest>
