@@ -71,6 +71,18 @@ class SamlHandler
             $requestId = $this->generateId();
             $issueInstant = $this->getIssueInstant();
 
+            // Build NameIDPolicy - omit Format attribute if unspecified to let ADFS choose
+            $nameIdFormat = $spConfig['NameIDFormat'];
+            $nameIdPolicyXml = '';
+            
+            if (strpos($nameIdFormat, 'unspecified') !== false) {
+                // For unspecified, let ADFS determine the format
+                $nameIdPolicyXml = '<samlp:NameIDPolicy AllowCreate="true"/>';
+            } else {
+                // For specific formats, include the Format attribute
+                $nameIdPolicyXml = '<samlp:NameIDPolicy Format="' . $nameIdFormat . '" AllowCreate="true"/>';
+            }
+
             $xml = <<<XML
 <?xml version="1.0" encoding="UTF-8"?>
 <samlp:AuthnRequest
@@ -83,7 +95,7 @@ class SamlHandler
     AssertionConsumerServiceURL="{$spConfig['assertionConsumerService']['url']}"
     ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST">
     <saml:Issuer>{$spConfig['entityId']}</saml:Issuer>
-    <samlp:NameIDPolicy Format="{$spConfig['NameIDFormat']}" AllowCreate="true"/>
+    $nameIdPolicyXml
 </samlp:AuthnRequest>
 XML;
 
