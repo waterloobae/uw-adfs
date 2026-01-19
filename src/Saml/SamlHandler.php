@@ -96,9 +96,9 @@ XML;
                 );
             }
 
-            // Encode for HTTP-Redirect binding
-            $encoded = base64_encode(gzcompress($xml));
-            $encoded = str_replace(['+', '/', '='], ['-', '_', ''], $encoded);
+            // Encode for HTTP-Redirect binding (deflate + base64 + urlencode)
+            $deflated = gzdeflate($xml);
+            $encoded = base64_encode($deflated);
 
             $url = $idpConfig['singleSignOnService']['url'] . "?SAMLRequest=" . urlencode($encoded);
 
@@ -167,9 +167,9 @@ XML;
                 );
             }
 
-            // Encode for HTTP-Redirect binding
-            $encoded = base64_encode(gzcompress($xml));
-            $encoded = str_replace(['+', '/', '='], ['-', '_', ''], $encoded);
+            // Encode for HTTP-Redirect binding (deflate + base64 + urlencode)
+            $deflated = gzdeflate($xml);
+            $encoded = base64_encode($deflated);
 
             $url = $idpConfig['singleLogoutService']['url'] . "?SAMLRequest=" . urlencode($encoded);
 
@@ -200,8 +200,8 @@ XML;
                 throw new Exception("Failed to decode LogoutRequest");
             }
 
-            // Try to decompress if gzipped
-            $decompressed = @gzuncompress($xml);
+            // Try to decompress if deflated
+            $decompressed = @gzinflate($xml);
             if ($decompressed !== false) {
                 $xml = $decompressed;
             }
@@ -283,9 +283,9 @@ XML;
                 );
             }
 
-            // Encode for HTTP-Redirect binding
-            $encoded = base64_encode(gzcompress($xml));
-            $encoded = str_replace(['+', '/', '='], ['-', '_', ''], $encoded);
+            // Encode for HTTP-Redirect binding (deflate + base64 + urlencode)
+            $deflated = gzdeflate($xml);
+            $encoded = base64_encode($deflated);
 
             $url = $idpConfig['singleLogoutService']['url'] . "?SAMLResponse=" . urlencode($encoded);
 
