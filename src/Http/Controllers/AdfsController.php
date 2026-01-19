@@ -152,8 +152,8 @@ class AdfsController extends Controller
    }
 
     /**
-     * Handle simple SAML logout (no LogoutRequest, WS-Federation signout)
-     * Redirects to ADFS which shows "close your browser" message
+     * Handle simple logout - local session clear only
+     * Does not contact ADFS at all to avoid MSIS7055 errors
      */
     public function simpleLogout(Request $request): RedirectResponse
     {
@@ -174,19 +174,10 @@ class AdfsController extends Controller
         // Regenerate session token
         Session::regenerateToken();
         
-        // Get ADFS logout URL from config
-        $environment = config('uw-adfs.environment', 'development');
-        $adfsLogoutBaseUrl = config("uw-adfs.idp.{$environment}.singleLogoutService.url");
+        Log::info("User logged out (local only): {$email}");
         
-        // Construct ADFS logout URL with WS-Federation signout
-        $adfsLogoutUrl = rtrim($adfsLogoutBaseUrl, '/');
-        $adfsLogoutUrl .= '?wa=wsignout1.0&wreply=' . urlencode(config('app.url'));
-        
-        Log::info("User logged out: {$email}");
-        Log::info("Redirecting to ADFS logout: {$adfsLogoutUrl}");
-        
-        // Redirect to ADFS logout endpoint to clear ADFS session
-        return redirect($adfsLogoutUrl);
+        // Redirect to home - do not contact ADFS
+        return redirect('/')->with('status', 'You have been logged out locally. Please close your browser to complete the logout from ADFS.');
     }
 
     /**
