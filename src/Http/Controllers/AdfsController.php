@@ -152,15 +152,12 @@ class AdfsController extends Controller
    }
 
     /**
-     * Handle simple SAML logout (no LogoutRequest, direct redirect)
-     * This is useful for ADFS environments that don't support SP-initiated logout
+     * Handle simple SAML logout (no LogoutRequest, no ADFS redirect)
+     * This bypasses ADFS logout entirely to avoid MSIS7055 errors
      */
-    public function simpleLogout(Request $request): void
+    public function simpleLogout(Request $request): RedirectResponse
     {
-        Log::info("Simple logout endpoint called");
-        
-        // Get simple logout URL from ADFS service BEFORE clearing session
-        $logoutUrl = $this->adfsService->simpleLogout();
+        Log::info("Simple logout endpoint called (no ADFS redirect)");
         
         // Clear the local session
         Auth::logout();
@@ -169,18 +166,10 @@ class AdfsController extends Controller
         Session::regenerateToken();
         Session::flush();
             
-        Log::info("Local logout completed (simple mode)");
+        Log::info("Local logout completed (simple mode - no ADFS redirect)");
         
-        // Redirect to ADFS logout
-        if ($logoutUrl) {
-            Log::info("Redirecting to ADFS logout URL: " . $logoutUrl);
-            header('Location: ' . $logoutUrl);
-        } else {
-            Log::warning("No ADFS logout URL available, redirecting to home");
-            header('Location: ' . config('app.url'));
-        }
-        
-        exit();
+        // Just redirect back to app without touching ADFS
+        return redirect('/')->with('success', 'Logged out successfully');
     }
 
     /**
