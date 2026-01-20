@@ -101,6 +101,9 @@ UW_ADFS_REQUIRED_GROUPS="Faculty,Staff"
 UW_ADFS_BLOCKED_GROUPS="Suspended Accounts,Guest Users"
 UW_ADFS_ACCESS_DENIED_MESSAGE="Access denied. Contact administrator."
 
+# Redirect Configuration (optional)
+UW_ADFS_REDIRECT_AFTER_LOGIN=/dashboard
+
 # User Model (optional, defaults to App\Models\User)
 UW_ADFS_USER_MODEL=App\Models\User
 ```
@@ -182,6 +185,21 @@ The package supports both production and development ADFS environments. Set `UW_
 
 - `production`: Uses `adfs.uwaterloo.ca`
 - `development`: Uses `adfstest.uwaterloo.ca`
+
+### Redirect Configuration
+
+After successful login, users are redirected to a default page. Configure this in your `.env`:
+
+```env
+# Default: /dashboard
+UW_ADFS_REDIRECT_AFTER_LOGIN=/dashboard
+
+# Other examples:
+# UW_ADFS_REDIRECT_AFTER_LOGIN=/home
+# UW_ADFS_REDIRECT_AFTER_LOGIN=/admin/panel
+```
+
+**Note**: This redirect only applies when there's no `RelayState` in the SAML request. If a `RelayState` is provided, users will be redirected to that URL instead.
 
 ### Attribute Mapping
 

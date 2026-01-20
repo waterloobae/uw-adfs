@@ -79,7 +79,7 @@ class AdfsController extends Controller
                 // Get return URL from RelayState or default
                 $returnTo = $request->get('RelayState');
                 if (empty($returnTo) || $returnTo === config('app.url')) {
-                    $returnTo = config('app.url') . '/dashboard';
+                    $returnTo = config('app.url') . config('uw-adfs.redirect.after_login', '/dashboard');
                 }
                 Log::info('ADFS user logged in: ' . $email);
                 // Log::debug('Session data: ' . json_encode(Session::get('saml_session')));
