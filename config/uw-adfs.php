@@ -162,6 +162,10 @@ return [
     | Configuration for proxy/staging AP scenarios where this application
     | acts as both SAML proxy and client
     |
+    | IMPORTANT: Proxy mode uses Cache to store client context across requests.
+    | Ensure you have a persistent cache driver configured (redis, memcached, 
+    | database, or file). The default 'array' driver will NOT work for proxy mode.
+    |
     */
     'proxy' => [
         // Enable proxy mode - acts as intermediary between client apps and UW ADFS

@@ -4,7 +4,6 @@ namespace WaterlooBae\UwAdfs\Services;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Session;
 use WaterlooBae\UwAdfs\Saml\SamlHandler;
 use WaterlooBae\UwAdfs\Saml\SamlResponseProcessor;
 
@@ -71,15 +70,16 @@ class ProxyService
             'timestamp' => time(),
         ];
 
-        $sessionKey = 'proxy_client_' . $samlRequest['id'];
-        Session::put($sessionKey, $clientContext);
-        Session::save(); // Force session save before redirect
+        // Use Cache instead of Session for reliability across redirects
+        $cacheKey = 'proxy_client_' . $samlRequest['id'];
+        $cacheTtl = $this->config['session_lifetime'] ?? 3600; // Default 1 hour
+        Cache::put($cacheKey, $clientContext, $cacheTtl);
 
         Log::info('UW ADFS Proxy: Received client request', [
             'client_entity_id' => $samlRequest['issuer'],
             'request_id' => $samlRequest['id'],
-            'session_key' => $sessionKey,
-            'session_id' => Session::getId()
+            'cache_key' => $cacheKey,
+            'cache_ttl' => $cacheTtl
         ]);
 
         return $clientContext;
@@ -199,15 +199,13 @@ class ProxyService
         }
 
         $clientRequestId = $proxyContext['client_request_id'];
-        $sessionKey = 'proxy_client_' . $clientRequestId;
-        $clientContext = Session::get($sessionKey);
+        $cacheKey = 'proxy_client_' . $clientRequestId;
+        $clientContext = Cache::get($cacheKey);
 
         Log::info('UW ADFS Proxy: Retrieving client context', [
             'client_request_id' => $clientRequestId,
-            'session_key' => $sessionKey,
-            'session_id' => Session::getId(),
-            'context_found' => !empty($clientContext),
-            'all_session_keys' => array_keys(Session::all())
+            'cache_key' => $cacheKey,
+            'context_found' => !empty($clientContext)
         ]);
 
         if (!$clientContext) {
@@ -278,9 +276,9 @@ class ProxyService
     {
         $encodedResponse = base64_encode($responseXml);
         
-        // Clean up session data
-        $sessionKey = 'proxy_client_' . $clientContext['request_id'];
-        Session::forget($sessionKey);
+        // Clean up cache data
+        $cacheKey = 'proxy_client_' . $clientContext['request_id'];
+        Cache::forget($cacheKey);
 
         // Build POST form to send response
         $acsUrl = $clientContext['acs_url'];
